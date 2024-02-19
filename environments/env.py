@@ -13,7 +13,13 @@ from typing import Optional, Tuple
 from environments.utils import Data
 
 class GridMap:
-    def __init__(self, grid_size: int, resolution: float, roughness_exponent: float = 0.8, amplitude_gain: float = 10, seed: Optional[int] = None):
+    def __init__(
+        self, 
+        grid_size: int, 
+        resolution: float, 
+        roughness_exponent: float = 0.8, 
+        amplitude_gain: float = 10, 
+        seed: Optional[int] = None):
         """
         Initialize the grid map.
 
@@ -190,18 +196,19 @@ class TerrainGeometry:
         """
         self.grid_map = grid_map
 
-    def set_terrain_geometry(self,
-                             is_fractal: bool = True,
-                             is_crater: bool = True, 
-                             num_craters: int = 5,
-                             crater_margin: float = 5,
-                             min_angle: float = 10, 
-                             max_angle: float = 20,
-                             min_radius: float = 10, 
-                             max_radius: float = 20,
-                             start_pos: Optional[NDArray] = None,
-                             goal_pos: Optional[NDArray] = None,
-                             safety_margin: float = 5):
+    def set_terrain_geometry(
+        self,
+        is_fractal: bool = True,
+        is_crater: bool = True, 
+        num_craters: int = 5,
+        crater_margin: float = 5,
+        min_angle: float = 10, 
+        max_angle: float = 20,
+        min_radius: float = 10, 
+        max_radius: float = 20,
+        start_pos: Optional[NDArray] = None,
+        goal_pos: Optional[NDArray] = None,
+        safety_margin: float = 5):
         """
         Sets the planetary terrain environment based on fractal methods with craters.
 
