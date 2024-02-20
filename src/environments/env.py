@@ -12,14 +12,16 @@ from typing import Optional, Tuple
 
 from environments.utils import Data
 
+
 class GridMap:
     def __init__(
-        self, 
-        grid_size: int, 
-        resolution: float, 
-        roughness_exponent: float = 0.8, 
-        amplitude_gain: float = 10, 
-        seed: Optional[int] = None) -> None:
+        self,
+        grid_size: int,
+        resolution: float,
+        roughness_exponent: float = 0.8,
+        amplitude_gain: float = 10,
+        seed: Optional[int] = None,
+    ) -> None:
         """
         Initialize the grid map.
 
@@ -35,7 +37,7 @@ class GridMap:
         self.center_x = self.center_y = grid_size * resolution / 2
         self.lower_left_x = self.center_x - grid_size / 2 * resolution
         self.lower_left_y = self.center_y - grid_size / 2 * resolution
-        self.num_grids = grid_size ** 2
+        self.num_grids = grid_size**2
         self.data = self.initialize_data(self.grid_size)
         self.roughness_exponent = roughness_exponent
         self.amplitude_gain = amplitude_gain
@@ -59,7 +61,7 @@ class GridMap:
             slope=np.zeros((grid_size, grid_size)),
             slip=np.zeros((grid_size, grid_size)),
             t_class=np.zeros((grid_size, grid_size)),
-            color=np.zeros((grid_size, grid_size, 3))  # Assuming color is an RGB image
+            color=np.zeros((grid_size, grid_size, 3)),  # Assuming color is an RGB image
         )
 
     @staticmethod
@@ -76,7 +78,9 @@ class GridMap:
         simplex.seed(seed) if seed is not None else simplex.random_seed()
         return np.random.default_rng(seed)
 
-    def get_value_from_grid_id(self, x_index: int, y_index: int, attribute: str = "height") -> Optional[float]:
+    def get_value_from_grid_id(
+        self, x_index: int, y_index: int, attribute: str = "height"
+    ) -> Optional[float]:
         """
         Get values at a specified location described by x and y indices from the data structure.
 
@@ -94,7 +98,9 @@ class GridMap:
         else:
             return None
 
-    def get_grid_indices_from_position(self, x_pos: float, y_pos: float) -> Tuple[int, int]:
+    def get_grid_indices_from_position(
+        self, x_pos: float, y_pos: float
+    ) -> Tuple[int, int]:
         """
         Get grid indices for given positional information.
 
@@ -105,8 +111,12 @@ class GridMap:
         Returns:
         - A tuple of (x_index, y_index).
         """
-        x_index = self.calculate_index_from_position(x_pos, self.lower_left_x, self.grid_size)
-        y_index = self.calculate_index_from_position(y_pos, self.lower_left_y, self.grid_size)
+        x_index = self.calculate_index_from_position(
+            x_pos, self.lower_left_x, self.grid_size
+        )
+        y_index = self.calculate_index_from_position(
+            y_pos, self.lower_left_y, self.grid_size
+        )
         return x_index, y_index
 
     def calculate_grid_id(self, x_index: int, y_index: int) -> int:
@@ -122,7 +132,9 @@ class GridMap:
         """
         return y_index * self.grid_size + x_index
 
-    def calculate_index_from_position(self, position: float, lower_left: float, max_index: int) -> int:
+    def calculate_index_from_position(
+        self, position: float, lower_left: float, max_index: int
+    ) -> int:
         """
         Calculate x or y axis index for given positional information.
 
@@ -136,10 +148,12 @@ class GridMap:
         """
         index = int(np.floor((position - lower_left) / self.resolution))
         if not 0 <= index < max_index:
-            raise ValueError('Given position is out of the map!')
+            raise ValueError("Given position is out of the map!")
         return index
 
-    def set_value_from_position(self, x_pos: float, y_pos: float, value: float, attribute: str = "height") -> bool:
+    def set_value_from_position(
+        self, x_pos: float, y_pos: float, value: float, attribute: str = "height"
+    ) -> bool:
         """
         Substitute given values into the data structure at specified x and y position.
 
@@ -155,7 +169,14 @@ class GridMap:
         x_index, y_index = self.get_grid_indices_from_position(x_pos, y_pos)
         return self.set_value_from_indices(x_index, y_index, value, attribute)
 
-    def set_value_from_indices(self, x_index: int, y_index: int, value: float, attribute: str = "height", increment: bool = True) -> bool:
+    def set_value_from_indices(
+        self,
+        x_index: int,
+        y_index: int,
+        value: float,
+        attribute: str = "height",
+        increment: bool = True,
+    ) -> bool:
         """
         Substitute given values into the data structure at specified x and y indices.
 
@@ -172,7 +193,7 @@ class GridMap:
         if 0 <= x_index < self.grid_size and 0 <= y_index < self.grid_size:
             # Get the attribute array using getattr
             attr_array = getattr(self.data, attribute)
-            
+
             # Increment or set the value based on the 'increment' flag
             if increment:
                 attr_array[y_index, x_index] += value
@@ -199,16 +220,17 @@ class TerrainGeometry:
     def set_terrain_geometry(
         self,
         is_fractal: bool = True,
-        is_crater: bool = True, 
+        is_crater: bool = True,
         num_craters: int = 5,
         crater_margin: float = 5,
-        min_angle: float = 10, 
+        min_angle: float = 10,
         max_angle: float = 20,
-        min_radius: float = 10, 
+        min_radius: float = 10,
         max_radius: float = 20,
         start_pos: Optional[NDArray] = None,
         goal_pos: Optional[NDArray] = None,
-        safety_margin: float = 5) -> None:
+        safety_margin: float = 5,
+    ) -> None:
         """
         Sets the planetary terrain environment based on fractal methods with craters.
 
@@ -225,15 +247,35 @@ class TerrainGeometry:
         if is_crater:
             craters_placed = 0
             # Initialize crater positions and radii arrays
-            crater_positions = np.concatenate([np.atleast_2d(start_pos), np.atleast_2d(goal_pos)]) if start_pos is not None and goal_pos is not None else np.empty((0, 2))
+            crater_positions = (
+                np.concatenate([np.atleast_2d(start_pos), np.atleast_2d(goal_pos)])
+                if start_pos is not None and goal_pos is not None
+                else np.empty((0, 2))
+            )
             crater_radii = np.full((crater_positions.shape[0],), safety_margin)
 
             while craters_placed < num_craters:
-                crater_center = self.grid_map.random_generator.uniform(self.grid_map.lower_left_x, (self.grid_map.grid_size - 1) * self.grid_map.resolution, size=(2,))
-                crater_radius = self.grid_map.random_generator.uniform(min_radius, max_radius)
-                
-                if not self.check_circle_overlap(crater_positions, crater_radii, crater_center, crater_radius, crater_margin):
-                    self.generate_crater(self.grid_map.random_generator.uniform(min_angle, max_angle), crater_radius, crater_center)
+                crater_center = self.grid_map.random_generator.uniform(
+                    self.grid_map.lower_left_x,
+                    (self.grid_map.grid_size - 1) * self.grid_map.resolution,
+                    size=(2,),
+                )
+                crater_radius = self.grid_map.random_generator.uniform(
+                    min_radius, max_radius
+                )
+
+                if not self.check_circle_overlap(
+                    crater_positions,
+                    crater_radii,
+                    crater_center,
+                    crater_radius,
+                    crater_margin,
+                ):
+                    self.generate_crater(
+                        self.grid_map.random_generator.uniform(min_angle, max_angle),
+                        crater_radius,
+                        crater_center,
+                    )
                     crater_positions = np.vstack([crater_positions, crater_center])
                     crater_radii = np.append(crater_radii, crater_radius)
                     craters_placed += 1
@@ -270,12 +312,12 @@ class TerrainGeometry:
             for x in range(size // 2 + 1):
                 phase = 2 * np.pi * self.grid_map.random_generator.random()
                 if x != 0 or y != 0:  # Avoid division by zero at the origin
-                    rad = 1 / (x**2 + y**2)**((roughness_exponent + 1) / 2)
+                    rad = 1 / (x**2 + y**2) ** ((roughness_exponent + 1) / 2)
                 else:
                     rad = 0.0
                 grid[y, x] = rad * np.exp(1j * phase)
 
-                # Symmetry for non-edge cases    
+                # Symmetry for non-edge cases
                 if x > 0 and y > 0:
                     grid[-y, -x] = np.conj(grid[y, x])
 
@@ -288,18 +330,22 @@ class TerrainGeometry:
         for y in range(1, size // 2):
             for x in range(1, size // 2):
                 phase = 2 * np.pi * self.grid_map.random_generator.random()
-                rad = 1 / (x**2 + y**2)**((roughness_exponent + 1) / 2)
+                rad = 1 / (x**2 + y**2) ** ((roughness_exponent + 1) / 2)
                 grid[y, size - x] = rad * np.exp(1j * phase)
                 grid[size - y, x] = np.conj(grid[y, size - x])
 
         # Scale and perform the inverse FFT
-        grid *= abs(amplitude_gain) * (size * resolution * 1e+3)**(roughness_exponent + 1 + 0.5)
-        surface = np.fft.ifft2(grid).real / (resolution * 1e+3)**2
+        grid *= abs(amplitude_gain) * (size * resolution * 1e3) ** (
+            roughness_exponent + 1 + 0.5
+        )
+        surface = np.fft.ifft2(grid).real / (resolution * 1e3) ** 2
         surface *= 1e-3  # Convert to meters
 
         return surface.astype(np.float32)
 
-    def generate_crater(self, angle: float, radius: float, crater_center: NDArray) -> None:
+    def generate_crater(
+        self, angle: float, radius: float, crater_center: NDArray
+    ) -> None:
         """
         Generates and applies a crater to the terrain based on the specified angle, radius,
         and center position. This version ensures the crater's slope is correctly represented
@@ -313,24 +359,43 @@ class TerrainGeometry:
         crater_diameter = 2 * radius
         grid_resolution = self.grid_map.resolution
         grid_size = int(np.ceil(crater_diameter / grid_resolution))
-        xx, yy = np.meshgrid(np.linspace(-radius, radius, grid_size), np.linspace(-radius, radius, grid_size))
+        xx, yy = np.meshgrid(
+            np.linspace(-radius, radius, grid_size),
+            np.linspace(-radius, radius, grid_size),
+        )
 
         distances = np.sqrt(xx**2 + yy**2)
         # Adjust the crater profile calculation to ensure the correct gradient
-        crater_profile = np.where(distances <= radius, -np.tan(np.radians(angle)) * (radius - distances), 0)
-        center_x_index, center_y_index = self.grid_map.get_grid_indices_from_position(crater_center[0], crater_center[1])
+        crater_profile = np.where(
+            distances <= radius, -np.tan(np.radians(angle)) * (radius - distances), 0
+        )
+        center_x_index, center_y_index = self.grid_map.get_grid_indices_from_position(
+            crater_center[0], crater_center[1]
+        )
 
         for i in range(grid_size):
             for j in range(grid_size):
                 x_index = center_x_index - grid_size // 2 + i
                 y_index = center_y_index - grid_size // 2 + j
-                if 0 <= x_index < self.grid_map.grid_size and 0 <= y_index < self.grid_map.grid_size:
-                    self.grid_map.data.height[y_index, x_index] += crater_profile[j, i]  # Ensure depth is subtracted to create a depression
+                if (
+                    0 <= x_index < self.grid_map.grid_size
+                    and 0 <= y_index < self.grid_map.grid_size
+                ):
+                    self.grid_map.data.height[y_index, x_index] += crater_profile[
+                        j, i
+                    ]  # Ensure depth is subtracted to create a depression
 
         # Adjust the entire terrain to ensure no negative heights, if necessary
         self.grid_map.data.height = self.adjust_height_values(self.grid_map.data.height)
 
-    def check_circle_overlap(self, existing_centers: NDArray, existing_radii: NDArray, new_center: NDArray, new_radius: float, margin: float) -> bool:
+    def check_circle_overlap(
+        self,
+        existing_centers: NDArray,
+        existing_radii: NDArray,
+        new_center: NDArray,
+        new_radius: float,
+        margin: float,
+    ) -> bool:
         """
         Checks if a new circle overlaps with existing circles, considering a margin.
 
@@ -349,7 +414,7 @@ class TerrainGeometry:
             if distance < radius + new_radius + margin:
                 return True
         return False
-    
+
     def adjust_height_values(self, heights: NDArray) -> NDArray:
         """
         Adjusts height values to ensure they start from zero.
@@ -361,19 +426,20 @@ class TerrainGeometry:
         - (NDArray): Adjusted height data.
         """
         return heights - np.min(heights)
-    
+
 
 class TerrainColoring:
     def __init__(self, grid_map: GridMap) -> None:
         self.grid_map = grid_map
 
     def set_terrain_class_distribution(
-        self, 
-        occupancy: list, 
+        self,
+        occupancy: list,
         threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
-        seed: Optional[int] = None) -> None:
+        seed: Optional[int] = None,
+    ) -> None:
         """
         Sets the terrain distribution based on a given occupancy vector, applying shading effects
         based on the terrain class distribution.
@@ -388,13 +454,22 @@ class TerrainColoring:
         self.occupancy = np.array(occupancy)
         if self.occupancy.sum() > 1:
             self.occupancy /= self.occupancy.sum()
-            warnings.warn('Sum of occupancy vector exceeds one! The vector has been normalized.')
+            warnings.warn(
+                "Sum of occupancy vector exceeds one! The vector has been normalized."
+            )
 
         terrain_data = self.generate_multi_terrain(seed=seed)
         self.grid_map.data.t_class = terrain_data.ravel()
-        self.create_color_map(occupancy=occupancy, threshold=threshold, upper_threshold=upper_threshold, ambient_intensity=ambient_intensity)
+        self.create_color_map(
+            occupancy=occupancy,
+            threshold=threshold,
+            upper_threshold=upper_threshold,
+            ambient_intensity=ambient_intensity,
+        )
 
-    def generate_multi_terrain(self, feature_size: float = 20, seed: Optional[int] = None) -> NDArray:
+    def generate_multi_terrain(
+        self, feature_size: float = 20, seed: Optional[int] = None
+    ) -> NDArray:
         """
         Generates terrain class data based on noise, simulating various terrain types. Segments the
         noise data into different classes based on the provided occupancy ratios.
@@ -415,7 +490,11 @@ class TerrainColoring:
         for y in range(self.grid_map.grid_size):
             for x in range(self.grid_map.grid_size):
                 noise_data[y, x] = simplex.noise2(x / feature_size, y / feature_size)
-        noise_data = (noise_data - noise_data.min()) / (noise_data.max() - noise_data.min()) * 100
+        noise_data = (
+            (noise_data - noise_data.min())
+            / (noise_data.max() - noise_data.min())
+            * 100
+        )
 
         # Convert occupancy ratios into cumulative percentages for thresholding
         thresholds = np.cumsum(self.occupancy) * 100
@@ -432,7 +511,13 @@ class TerrainColoring:
 
         return terrain_data
 
-    def create_color_map(self, occupancy: list, threshold: float, upper_threshold: float, ambient_intensity: float) -> None:
+    def create_color_map(
+        self,
+        occupancy: list,
+        threshold: float,
+        upper_threshold: float,
+        ambient_intensity: float,
+    ) -> None:
         """
         Creates a color map for the terrain based on class distribution and applies shading.
 
@@ -443,14 +528,24 @@ class TerrainColoring:
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
         num_classes = len(occupancy)
-        facecolors = -np.reshape(self.grid_map.data.t_class, (self.grid_map.grid_size, self.grid_map.grid_size))
+        facecolors = -np.reshape(
+            self.grid_map.data.t_class,
+            (self.grid_map.grid_size, self.grid_map.grid_size),
+        )
         norm = matplotlib.colors.Normalize(vmin=-num_classes, vmax=0)
-        self.grid_map.data.color = plt.cm.copper(norm(facecolors))[:, :, 0:3].astype(np.float32)
-        
+        self.grid_map.data.color = plt.cm.copper(norm(facecolors))[:, :, 0:3].astype(
+            np.float32
+        )
+
         # Apply shading to color map
         self.create_shading(threshold, upper_threshold, ambient_intensity)
 
-    def create_shading(self, threshold: float, upper_threshold: float = 1, ambient_intensity: float = 0.1) -> None:
+    def create_shading(
+        self,
+        threshold: float,
+        upper_threshold: float = 1,
+        ambient_intensity: float = 0.1,
+    ) -> None:
         """
         Creates a shading effect on the terrain's color map based on the height map and specified lighting parameters.
 
@@ -459,7 +554,10 @@ class TerrainColoring:
         - upper_threshold (float): Upper threshold for light source height.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
-        height = np.reshape(self.grid_map.data.height, (self.grid_map.grid_size, self.grid_map.grid_size))
+        height = np.reshape(
+            self.grid_map.data.height,
+            (self.grid_map.grid_size, self.grid_map.grid_size),
+        )
         color = self.grid_map.data.color.transpose(2, 0, 1).astype(np.float32)
 
         # calculate normal vector
@@ -477,11 +575,16 @@ class TerrainColoring:
 
         # generate light source vector
         theta = self.grid_map.random_generator.random() * (2 * np.pi)
-        z = self.grid_map.random_generator.random() * (upper_threshold - threshold) + threshold
+        z = (
+            self.grid_map.random_generator.random() * (upper_threshold - threshold)
+            + threshold
+        )
         r = np.sqrt(1 - z**2)
         l = np.array([r * np.cos(theta), r * np.sin(theta), z])
 
         # cast shading to color image
         shade = np.sum(l[:, np.newaxis, np.newaxis] * norm, axis=0, keepdims=True)
         color_shaded = shade * color + ambient_intensity * color
-        self.grid_map.data.color = np.squeeze(np.clip(color_shaded, 0, 1)).transpose(1, 2, 0)
+        self.grid_map.data.color = np.squeeze(np.clip(color_shaded, 0, 1)).transpose(
+            1, 2, 0
+        )
