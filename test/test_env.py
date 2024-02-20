@@ -12,8 +12,8 @@ from environments.env import TerrainGeometry
 from environments.env import TerrainColoring
 
 # Initialize GridMap
-grid_size = 96
-resolution = 1.0
+grid_size = 64
+resolution = 0.5
 roughness_exponent = 0.8
 amplitude_gain = 10
 seed = 1
@@ -24,17 +24,17 @@ grid_map = GridMap(grid_size, resolution, roughness_exponent, amplitude_gain, se
 terrain_geometry = TerrainGeometry(grid_map)
 terrain_geometry.set_terrain_geometry(is_fractal=True,
                                       is_crater=True,
-                                      num_craters=5,
+                                      num_craters=3,
                                       crater_margin=5,
                                       min_angle=20,
                                       max_angle=25,
-                                      min_radius=10,
-                                      max_radius=20
+                                      min_radius=5,
+                                      max_radius=10
                                       )
 
 # Set Terrain Coloring
 terrain_coloring = TerrainColoring(grid_map)
-occupancy = [0.4, 0.4, 0.1, 0.1]  # Example occupancy ratios for terrain types
+occupancy = [0.4, 0.1, 0.4, 0.1]  # Example occupancy ratios for terrain types
 threshold = 0.8
 upper_threshold = 1
 ambient_intensity = 0.1

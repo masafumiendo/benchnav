@@ -19,7 +19,7 @@ class GridMap:
         resolution: float, 
         roughness_exponent: float = 0.8, 
         amplitude_gain: float = 10, 
-        seed: Optional[int] = None):
+        seed: Optional[int] = None) -> None:
         """
         Initialize the grid map.
 
@@ -208,7 +208,7 @@ class TerrainGeometry:
         max_radius: float = 20,
         start_pos: Optional[NDArray] = None,
         goal_pos: Optional[NDArray] = None,
-        safety_margin: float = 5):
+        safety_margin: float = 5) -> None:
         """
         Sets the planetary terrain environment based on fractal methods with craters.
 
@@ -243,7 +243,7 @@ class TerrainGeometry:
 
         self.grid_map.data.height = self.adjust_height_values(self.grid_map.data.height)
 
-    def apply_fractal_surface(self):
+    def apply_fractal_surface(self) -> None:
         """
         Applies a fractal surface to the terrain height data.
         """
@@ -299,7 +299,7 @@ class TerrainGeometry:
 
         return surface.astype(np.float32)
 
-    def generate_crater(self, angle: float, radius: float, crater_center: NDArray):
+    def generate_crater(self, angle: float, radius: float, crater_center: NDArray) -> None:
         """
         Generates and applies a crater to the terrain based on the specified angle, radius,
         and center position. This version ensures the crater's slope is correctly represented
@@ -364,7 +364,7 @@ class TerrainGeometry:
     
 
 class TerrainColoring:
-    def __init__(self, grid_map: GridMap):
+    def __init__(self, grid_map: GridMap) -> None:
         self.grid_map = grid_map
 
     def set_terrain_class_distribution(
@@ -373,7 +373,7 @@ class TerrainColoring:
         threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
-        seed: Optional[int] = None):
+        seed: Optional[int] = None) -> None:
         """
         Sets the terrain distribution based on a given occupancy vector, applying shading effects
         based on the terrain class distribution.
@@ -432,7 +432,7 @@ class TerrainColoring:
 
         return terrain_data
 
-    def create_color_map(self, occupancy: list, threshold: float, upper_threshold: float, ambient_intensity: float):
+    def create_color_map(self, occupancy: list, threshold: float, upper_threshold: float, ambient_intensity: float) -> None:
         """
         Creates a color map for the terrain based on class distribution and applies shading.
 
@@ -450,7 +450,7 @@ class TerrainColoring:
         # Apply shading to color map
         self.create_shading(threshold, upper_threshold, ambient_intensity)
 
-    def create_shading(self, threshold: float, upper_threshold: float = 1, ambient_intensity: float = 0.1):
+    def create_shading(self, threshold: float, upper_threshold: float = 1, ambient_intensity: float = 0.1) -> None:
         """
         Creates a shading effect on the terrain's color map based on the height map and specified lighting parameters.
 
