@@ -3,6 +3,7 @@ author: Masafumi Endo
 """
 
 import sys, os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
@@ -25,12 +26,12 @@ uppers = actual_slips + 2 * model.noise_scale
 
 # Visualize the results
 plt.figure(figsize=(10, 6))
-plt.plot(phis, actual_slips, label='Actual Slip')
+plt.plot(phis, actual_slips, label="Actual Slip")
 plt.fill_between(phis, lowers, uppers, alpha=0.3)
-plt.scatter(phis, observed_slips, label='Observed Slip')
-plt.xlabel('Slope Angle (phi)')
-plt.ylabel('Slip Ratio')
-plt.title('Slip Ratio vs. Slope Angle')
+plt.scatter(phis, observed_slips, label="Observed Slip")
+plt.xlabel("Slope Angle (phi)")
+plt.ylabel("Slip Ratio")
+plt.title("Slip Ratio vs. Slope Angle")
 plt.legend()
 plt.grid(True)
 plt.show()
