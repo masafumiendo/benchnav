@@ -22,6 +22,10 @@ class TerrainDataset(Dataset):
         - data_directory (str): The directory containing the dataset.
         - data_split (str): The dataset split ('train', 'valid', 'test').
         """
+        # Validate the data_split argument
+        if data_split not in ["train", "valid", "test"]:
+            raise ValueError("data_split must be one of 'train', 'valid', 'test'")
+
         self.data_directory = os.path.join(data_directory, data_split + "/")
         self.data_indices = [
             file
