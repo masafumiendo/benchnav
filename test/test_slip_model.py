@@ -2,14 +2,15 @@
 author: Masafumi Endo
 """
 
-import sys, os
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from environments.slip_model import SlipModel
+from src.environments.slip_model import SlipModel
 
 # Instantiate the SlipModel
 model = SlipModel(slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1)

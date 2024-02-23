@@ -2,15 +2,16 @@
 author: Masafumi Endo
 """
 
-import sys, os
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import matplotlib.pyplot as plt
 
-from environments.env import GridMap
-from environments.env import TerrainGeometry
-from environments.env import TerrainColoring
+from src.environments.env import GridMap
+from src.environments.env import TerrainGeometry
+from src.environments.env import TerrainColoring
 
 # Initialize GridMap
 grid_size = 64
