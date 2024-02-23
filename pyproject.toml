@@ -18,6 +18,8 @@ dependencies = [
     "gymnasium==0.29.1",
     "torch==2.00",
     "torchvision==0.15.1",
+    "gpytorch==1.11",
+    "segmentation-models-pytorch==0.3.3"
 ]
 
 [project.optional-dependencies]
