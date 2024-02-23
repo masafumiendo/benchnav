@@ -20,7 +20,6 @@ class SlipModel:
         Initialize SlipModel class.
 
         Parameters:
-
         - slip_sensitivity (float): Sensitivity of slip to slope.
         - slip_nonlinearity (float): Nonlinearity of slip to slope.
         - slip_offset (float): Offset of slip.
@@ -46,7 +45,7 @@ class SlipModel:
 
         Returns:
         - slip (Union[float, NDArray[np.float_]]): Slip ratio, adjusted to be within the range (-1, 1),
-                                               can be a single value or an array of values depending on the input.
+                                                   can be a single value or an array of values depending on the input.
         """
         slip = self.latent_model(phi)
         # Generate slip with noise and then clip it to be within the range (-1, 1)
@@ -65,11 +64,11 @@ class SlipModel:
 
         Returns:
         - slip (Union[float, NDArray[np.float_]]): Slip ratio, without noise,
-                                               can be a single value or an array of values depending on the input.
+                                                   can be a single value or an array of values depending on the input.
         """
         base_slip = self.slip_sensitivity * 1e-3 * np.abs(phi) ** self.slip_nonlinearity
         # Apply conditional operation based on the sign of phi, supporting both scalar and array inputs
         slip = np.where(
             phi >= 0, base_slip + self.slip_offset, -base_slip + self.slip_offset
         )
-        return slip
+        return np.clip(slip, -1, 1)
