@@ -574,16 +574,20 @@ class TerrainColoring:
         norm /= np.sqrt((norm * norm).sum(axis=0, keepdims=True))
 
         # generate light source vector
-        theta = self.grid_map.random_generator.random() * (2 * np.pi)
+        light_angle = self.grid_map.random_generator.random() * (2 * np.pi)
         z = (
             self.grid_map.random_generator.random() * (upper_threshold - threshold)
             + threshold
         )
-        r = np.sqrt(1 - z**2)
-        l = np.array([r * np.cos(theta), r * np.sin(theta), z])
+        radius = np.sqrt(1 - z**2)
+        light_source = np.array(
+            [radius * np.cos(light_angle), radius * np.sin(light_angle), z]
+        )
 
         # cast shading to color image
-        shade = np.sum(l[:, np.newaxis, np.newaxis] * norm, axis=0, keepdims=True)
+        shade = np.sum(
+            light_source[:, np.newaxis, np.newaxis] * norm, axis=0, keepdims=True
+        )
         color_shaded = shade * color + ambient_intensity * color
         self.grid_map.data.color = np.squeeze(np.clip(color_shaded, 0, 1)).transpose(
             1, 2, 0
