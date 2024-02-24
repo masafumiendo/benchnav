@@ -6,7 +6,7 @@ build-backend = 'setuptools.build_meta'
 package-dir = {"" = "src"}
 
 [project]
-name = "planning_bechmark"
+name = "benchnav"
 version = "0.1.0"
 description = "path/motion planning benchmark for planetary exploration rovers"
 requires-python = ">=3.10"

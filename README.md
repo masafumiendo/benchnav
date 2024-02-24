@@ -1,4 +1,4 @@
-# planning_benchmark
+# BenchNav
 path/motion planning benchmark for planetary exploration rovers
 
 ## Dependencies
@@ -60,6 +60,6 @@ NOTE: Currently, Docker is not supported on CPU-only environment
 ## Test
 
 ```bash
-cd /workspace/planning_benchmark
+cd /workspace/benchnav
 python3 test/test_env.py
 ```

@@ -1,4 +1,4 @@
-NAME=planning_bechmark
+NAME=benchnav
 VERSION=0.0.1
 DOCKER_IMAGE_NAME=$(NAME):$(VERSION)
 CONTAINER_NAME=$(NAME)
