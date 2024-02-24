@@ -18,11 +18,7 @@ from src.prediction_models.slip_regressors.gpr import GPModel
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the SlipModel
-slip_model = SlipModel(
-    slip_sensitivity=1.0,
-    slip_nonlinearity=2.0,
-    slip_offset=0.1,
-)
+slip_model = SlipModel(slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1)
 
 # Generate synthetic data
 phis = np.linspace(-30, 30, 1000)

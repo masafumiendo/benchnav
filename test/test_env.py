@@ -7,6 +7,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import numpy as np
 import matplotlib.pyplot as plt
 
 from src.environments.env import GridMap
@@ -41,8 +42,8 @@ occupancy = [0.4, 0.1, 0.4, 0.1]  # Example occupancy ratios for terrain types
 threshold = 0.8
 upper_threshold = 1
 ambient_intensity = 0.1
-terrain_coloring.set_terrain_class_distribution(
-    occupancy, threshold, upper_threshold, ambient_intensity, seed
+terrain_coloring.set_terrain_class_coloring(
+    occupancy, threshold, upper_threshold, ambient_intensity
 )
 
 # Visualization
@@ -55,7 +56,7 @@ axs[0].axis("off")
 
 # Terrain Class Map
 terrain_class_map = axs[1].imshow(
-    grid_map.data.t_class.reshape((grid_size, grid_size)), cmap="viridis"
+    np.argmax(grid_map.data.t_class, axis=2), cmap="viridis"
 )
 axs[1].set_title("Terrain Class Map")
 axs[1].axis("off")

@@ -7,7 +7,6 @@ import segmentation_models_pytorch as smp
 
 
 class UNet(smp.Unet):
-
     def __init__(
         self,
         classes: int,
@@ -23,9 +22,7 @@ class UNet(smp.Unet):
         - classes (int): Number of classes for segmentation.
         """
         super(UNet, self).__init__(
-            encoder_name=encoder_name,
-            encoder_weights=encoder_weights,
-            classes=classes,
+            encoder_name=encoder_name, encoder_weights=encoder_weights, classes=classes
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
