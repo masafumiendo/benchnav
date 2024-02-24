@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import opensimplex as simplex
 from typing import Optional, Tuple
 
-from environments.utils import Data
+from src.environments.utils import Data
 
 
 class GridMap:
@@ -37,7 +37,7 @@ class GridMap:
         self.center_x = self.center_y = grid_size * resolution / 2
         self.lower_left_x = self.center_x - grid_size / 2 * resolution
         self.lower_left_y = self.center_y - grid_size / 2 * resolution
-        self.num_grids = grid_size**2
+        self.num_grids = grid_size ** 2
         self.data = self.initialize_data(self.grid_size)
         self.roughness_exponent = roughness_exponent
         self.amplitude_gain = amplitude_gain
@@ -312,7 +312,7 @@ class TerrainGeometry:
             for x in range(size // 2 + 1):
                 phase = 2 * np.pi * self.grid_map.random_generator.random()
                 if x != 0 or y != 0:  # Avoid division by zero at the origin
-                    rad = 1 / (x**2 + y**2) ** ((roughness_exponent + 1) / 2)
+                    rad = 1 / (x ** 2 + y ** 2) ** ((roughness_exponent + 1) / 2)
                 else:
                     rad = 0.0
                 grid[y, x] = rad * np.exp(1j * phase)
@@ -330,7 +330,7 @@ class TerrainGeometry:
         for y in range(1, size // 2):
             for x in range(1, size // 2):
                 phase = 2 * np.pi * self.grid_map.random_generator.random()
-                rad = 1 / (x**2 + y**2) ** ((roughness_exponent + 1) / 2)
+                rad = 1 / (x ** 2 + y ** 2) ** ((roughness_exponent + 1) / 2)
                 grid[y, size - x] = rad * np.exp(1j * phase)
                 grid[size - y, x] = np.conj(grid[y, size - x])
 
@@ -364,7 +364,7 @@ class TerrainGeometry:
             np.linspace(-radius, radius, grid_size),
         )
 
-        distances = np.sqrt(xx**2 + yy**2)
+        distances = np.sqrt(xx ** 2 + yy ** 2)
         # Adjust the crater profile calculation to ensure the correct gradient
         crater_profile = np.where(
             distances <= radius, -np.tan(np.radians(angle)) * (radius - distances), 0
@@ -432,13 +432,12 @@ class TerrainColoring:
     def __init__(self, grid_map: GridMap) -> None:
         self.grid_map = grid_map
 
-    def set_terrain_class_distribution(
+    def set_terrain_class_coloring(
         self,
         occupancy: list,
         threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
-        seed: Optional[int] = None,
     ) -> None:
         """
         Sets the terrain distribution based on a given occupancy vector, applying shading effects
@@ -449,7 +448,6 @@ class TerrainColoring:
         - threshold (float): Lower threshold for shading effect.
         - upper_threshold (float): Upper threshold for shading effect.
         - ambient_intensity (float): Ambient light intensity for shading.
-        - seed (Optional[int]): Seed for random number generation, affecting terrain noise.
         """
         self.occupancy = np.array(occupancy)
         if self.occupancy.sum() > 1:
@@ -458,8 +456,11 @@ class TerrainColoring:
                 "Sum of occupancy vector exceeds one! The vector has been normalized."
             )
 
-        terrain_data = self.generate_multi_terrain(seed=seed)
-        self.grid_map.data.t_class = terrain_data.ravel()
+        terrain_data_int = self.generate_multi_terrain()  # Generate terrain class data
+        terrain_data_one_hot = np.eye(len(occupancy))[
+            terrain_data_int.astype(int)
+        ]  # Convert to one-hot encoding
+        self.grid_map.data.t_class = terrain_data_one_hot
         self.create_color_map(
             occupancy=occupancy,
             threshold=threshold,
@@ -467,24 +468,17 @@ class TerrainColoring:
             ambient_intensity=ambient_intensity,
         )
 
-    def generate_multi_terrain(
-        self, feature_size: float = 20, seed: Optional[int] = None
-    ) -> NDArray:
+    def generate_multi_terrain(self, feature_size: float = 20) -> NDArray:
         """
         Generates terrain class data based on noise, simulating various terrain types. Segments the
         noise data into different classes based on the provided occupancy ratios.
 
         Parameters:
         - feature_size (float): Scale of terrain features influenced by noise.
-        - seed (Optional[int]): Seed for random number generation, affecting noise generation.
 
         Returns:
         - (NDArray): Terrain class data as a 2D array.
         """
-        if seed is not None:
-            np.random.seed(seed)
-            simplex.seed(seed)
-
         # Generate noise data
         noise_data = np.zeros((self.grid_map.grid_size, self.grid_map.grid_size))
         for y in range(self.grid_map.grid_size):
@@ -528,10 +522,7 @@ class TerrainColoring:
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
         num_classes = len(occupancy)
-        facecolors = -np.reshape(
-            self.grid_map.data.t_class,
-            (self.grid_map.grid_size, self.grid_map.grid_size),
-        )
+        facecolors = -np.argmax(self.grid_map.data.t_class, axis=2)
         norm = matplotlib.colors.Normalize(vmin=-num_classes, vmax=0)
         self.grid_map.data.color = plt.cm.copper(norm(facecolors))[:, :, 0:3].astype(
             np.float32
@@ -554,10 +545,7 @@ class TerrainColoring:
         - upper_threshold (float): Upper threshold for light source height.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
-        height = np.reshape(
-            self.grid_map.data.height,
-            (self.grid_map.grid_size, self.grid_map.grid_size),
-        )
+        height = self.grid_map.data.height
         color = self.grid_map.data.color.transpose(2, 0, 1).astype(np.float32)
 
         # calculate normal vector
@@ -579,7 +567,7 @@ class TerrainColoring:
             self.grid_map.random_generator.random() * (upper_threshold - threshold)
             + threshold
         )
-        radius = np.sqrt(1 - z**2)
+        radius = np.sqrt(1 - z ** 2)
         light_source = np.array(
             [radius * np.cos(light_angle), radius * np.sin(light_angle), z]
         )
