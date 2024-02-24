@@ -435,7 +435,7 @@ class TerrainColoring:
     def set_terrain_class_coloring(
         self,
         occupancy: list,
-        threshold: float = 0.8,
+        lower_threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
     ) -> None:
@@ -445,7 +445,7 @@ class TerrainColoring:
 
         Parameters:
         - occupancy (list): List of occupancy ratios for different terrain classes.
-        - threshold (float): Lower threshold for shading effect.
+        - lower_threshold (float): Lower threshold for shading effect.
         - upper_threshold (float): Upper threshold for shading effect.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
@@ -463,7 +463,7 @@ class TerrainColoring:
         self.grid_map.data.t_class = terrain_data_one_hot
         self.create_color_map(
             occupancy=occupancy,
-            threshold=threshold,
+            lower_threshold=lower_threshold,
             upper_threshold=upper_threshold,
             ambient_intensity=ambient_intensity,
         )
@@ -508,7 +508,7 @@ class TerrainColoring:
     def create_color_map(
         self,
         occupancy: list,
-        threshold: float,
+        lower_threshold: float,
         upper_threshold: float,
         ambient_intensity: float,
     ) -> None:
@@ -516,7 +516,7 @@ class TerrainColoring:
         Creates a color map for the terrain based on class distribution and applies shading.
 
         Parameters:
-        - threshold (float): Parameter influencing the start of shading effect.
+        - lower_threshold (float): Parameter defining the lower limit of shading effect.
         - upper_threshold (float): Parameter defining the upper limit of shading effect.
         - ambient_intensity (float): Ambient light intensity for the shading.
         """
@@ -529,11 +529,11 @@ class TerrainColoring:
         )
 
         # Apply shading to color map
-        self.create_shading(threshold, upper_threshold, ambient_intensity)
+        self.create_shading(lower_threshold, upper_threshold, ambient_intensity)
 
     def create_shading(
         self,
-        threshold: float,
+        lower_threshold: float,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
     ) -> None:
@@ -541,7 +541,7 @@ class TerrainColoring:
         Creates a shading effect on the terrain's color map based on the height map and specified lighting parameters.
 
         Parameters:
-        - threshold (float): Lower threshold for shading effect, influencing light direction.
+        - lower_threshold (float): Lower threshold for shading effect, influencing light direction.
         - upper_threshold (float): Upper threshold for light source height.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
@@ -564,8 +564,9 @@ class TerrainColoring:
         # generate light source vector
         light_angle = self.grid_map.random_generator.random() * (2 * np.pi)
         z = (
-            self.grid_map.random_generator.random() * (upper_threshold - threshold)
-            + threshold
+            self.grid_map.random_generator.random()
+            * (upper_threshold - lower_threshold)
+            + lower_threshold
         )
         radius = np.sqrt(1 - z ** 2)
         light_source = np.array(
