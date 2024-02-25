@@ -38,7 +38,7 @@ terrain_geometry.set_terrain_geometry(
 
 # Set Terrain Coloring
 terrain_coloring = TerrainColoring(grid_map)
-occupancy = [0.4, 0.1, 0.4, 0.1]  # Example occupancy ratios for terrain types
+occupancy = np.array([0.4, 0.1, 0.4, 0.1])  # Example occupancy ratios for terrain types
 lower_threshold = 0.8
 upper_threshold = 1
 ambient_intensity = 0.1
