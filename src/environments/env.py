@@ -221,15 +221,15 @@ class TerrainGeometry:
         self,
         is_fractal: bool = True,
         is_crater: bool = True,
-        num_craters: int = 5,
-        crater_margin: float = 5,
-        min_angle: float = 10,
-        max_angle: float = 20,
-        min_radius: float = 10,
-        max_radius: float = 20,
+        num_craters: Optional[int] = 5,
+        crater_margin: Optional[float] = 5,
+        min_angle: Optional[float] = 10,
+        max_angle: Optional[float] = 20,
+        min_radius: Optional[float] = 10,
+        max_radius: Optional[float] = 20,
         start_pos: Optional[NDArray] = None,
         goal_pos: Optional[NDArray] = None,
-        safety_margin: float = 5,
+        safety_margin: Optional[float] = 5,
     ) -> None:
         """
         Sets the planetary terrain environment based on fractal methods with craters.
@@ -434,7 +434,7 @@ class TerrainColoring:
 
     def set_terrain_class_coloring(
         self,
-        occupancy: list,
+        occupancy: NDArray[np.float_],
         lower_threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
@@ -449,15 +449,14 @@ class TerrainColoring:
         - upper_threshold (float): Upper threshold for shading effect.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
-        self.occupancy = np.array(occupancy)
-        if self.occupancy.sum() > 1:
-            self.occupancy /= self.occupancy.sum()
+        if occupancy.sum() > 1:
+            occupancy /= occupancy.sum()
             warnings.warn(
                 "Sum of occupancy vector exceeds one! The vector has been normalized."
             )
 
-        terrain_data_int = self.generate_multi_terrain()  # Generate terrain class data
-        terrain_data_one_hot = np.eye(len(occupancy))[
+        terrain_data_int = self.generate_multi_terrain(occupancy)
+        terrain_data_one_hot = np.eye(occupancy.shape[0])[
             terrain_data_int.astype(int)
         ]  # Convert to one-hot encoding
         self.grid_map.data.t_class = terrain_data_one_hot
@@ -468,7 +467,9 @@ class TerrainColoring:
             ambient_intensity=ambient_intensity,
         )
 
-    def generate_multi_terrain(self, feature_size: float = 20) -> NDArray:
+    def generate_multi_terrain(
+        self, occupancy: NDArray[np.float_], feature_size: float = 20
+    ) -> NDArray:
         """
         Generates terrain class data based on noise, simulating various terrain types. Segments the
         noise data into different classes based on the provided occupancy ratios.
@@ -491,7 +492,7 @@ class TerrainColoring:
         )
 
         # Convert occupancy ratios into cumulative percentages for thresholding
-        thresholds = np.cumsum(self.occupancy) * 100
+        thresholds = np.cumsum(occupancy) * 100
         terrain_data = np.zeros_like(noise_data)
 
         # Initial class assignment to the lowest class
@@ -507,7 +508,7 @@ class TerrainColoring:
 
     def create_color_map(
         self,
-        occupancy: list,
+        occupancy: NDArray[np.float_],
         lower_threshold: float,
         upper_threshold: float,
         ambient_intensity: float,
@@ -516,12 +517,13 @@ class TerrainColoring:
         Creates a color map for the terrain based on class distribution and applies shading.
 
         Parameters:
+        - occupancy (NDArray): Occupancy ratios for different terrain classes.
         - lower_threshold (float): Parameter defining the lower limit of shading effect.
         - upper_threshold (float): Parameter defining the upper limit of shading effect.
         - ambient_intensity (float): Ambient light intensity for the shading.
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
-        num_classes = len(occupancy)
+        num_classes = occupancy.shape[0]
         facecolors = -np.argmax(self.grid_map.data.t_class, axis=2)
         norm = matplotlib.colors.Normalize(vmin=-num_classes, vmax=0)
         self.grid_map.data.color = plt.cm.copper(norm(facecolors))[:, :, 0:3].astype(
