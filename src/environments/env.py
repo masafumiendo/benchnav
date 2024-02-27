@@ -4,7 +4,6 @@ author: Masafumi Endo
 
 import warnings
 import numpy as np
-from numpy.typing import NDArray
 import torch
 import torch.nn.functional as F
 import matplotlib
@@ -12,7 +11,7 @@ import matplotlib.pyplot as plt
 import opensimplex as simplex
 from typing import Optional, Tuple
 
-from src.environments.utils import TensorData
+from src.utils.utils import set_randomness
 
 
 class GridMap:
@@ -43,14 +42,20 @@ class GridMap:
         self.tensor_data = self.initialize_data(self.grid_size)
         self.roughness_exponent = roughness_exponent
         self.amplitude_gain = amplitude_gain
-        self.seed = seed
-        self.random_generator = self.set_randomness(seed)
+        set_randomness(seed) if seed is not None else None
 
     @staticmethod
-    def initialize_data(grid_size: int) -> TensorData:
+    def initialize_data(grid_size: int) -> dict:
         """
         Initialize data structure for terrain information with zero-filled numpy arrays
         for a square grid.
+
+        Attributes:
+        - heights (torch.Tensor): A 2D tensor representing the terrain height map.
+        - slopes (torch.Tensor): A 2D tensor representing the terrain slope values.
+        - slips (torch.Tensor): A 2D tensor representing slip ratios across the terrain.
+        - t_classes (torch.Tensor): A 2D tensor representing terrain classification, where each class is indicated by one-hot encoding.
+        - colors (torch.Tensor): A 3D tensor (3 x height x width) representing the RGB color values for visualizing the terrain.
 
         Parameters:
         - grid_size (int): Size of one side of the square grid. The grid is assumed to be square.
@@ -58,29 +63,13 @@ class GridMap:
         Returns:
         - An instance of the Data class with initialized arrays for terrain attributes.
         """
-        return TensorData(
-            heights=torch.zeros((grid_size, grid_size)),
-            slopes=torch.zeros((grid_size, grid_size)),
-            slips=torch.zeros((grid_size, grid_size)),
-            t_classes=torch.zeros((grid_size, grid_size)),
-            colors=torch.zeros(
-                (3, grid_size, grid_size)
-            ),  # Assuming color is an RGB image
-        )
-
-    @staticmethod
-    def set_randomness(seed: Optional[int] = None) -> np.random.Generator:
-        """
-        Set randomness for reproducibility.
-
-        Parameters:
-        - seed (Optional[int]): Seed for random number generation.
-
-        Returns:
-        - A numpy random Generator instance.
-        """
-        simplex.seed(seed) if seed is not None else simplex.random_seed()
-        return np.random.default_rng(seed)
+        return {
+            "heights": torch.zeros((grid_size, grid_size)),
+            "slopes": torch.zeros((grid_size, grid_size)),
+            "slips": torch.zeros((grid_size, grid_size)),
+            "t_classes": torch.zeros((grid_size, grid_size)),
+            "colors": torch.zeros((grid_size, grid_size)),
+        }
 
     def get_value_from_grid_id(
         self, x_index: int, y_index: int, attribute: str = "heights"
@@ -97,7 +86,7 @@ class GridMap:
         - Value at the specified grid location or None if out of bounds.
         """
         if 0 <= x_index < self.grid_size and 0 <= y_index < self.grid_size:
-            attr_array = getattr(self.tensor_data, attribute)
+            attr_array = self.tensor_data[attribute]
             return attr_array[y_index, x_index]
         else:
             return None
@@ -196,7 +185,7 @@ class GridMap:
         """
         if 0 <= x_index < self.grid_size and 0 <= y_index < self.grid_size:
             # Get the attribute array using getattr
-            attr_array = getattr(self.tensor_data, attribute)
+            attr_array = self.tensor_data[attribute]
 
             # Increment or set the value based on the 'increment' flag
             if increment:
@@ -204,8 +193,6 @@ class GridMap:
             else:
                 attr_array[y_index, x_index] = value
 
-            # Update the data attribute with the modified array
-            setattr(self.tensor_data, attribute, attr_array)
             return True
         else:
             return False
@@ -285,7 +272,7 @@ class TerrainGeometry:
                 ):
                     heights = self.generate_crater(
                         heights,
-                        self.grid_map.random_generator.uniform(min_angle, max_angle),
+                        torch.rand(1).item() * (max_angle - min_angle) + min_angle,
                         crater_radius,
                         crater_center,
                     )
@@ -300,7 +287,7 @@ class TerrainGeometry:
         if is_fractal:
             heights = self.generate_fractal_surface(heights)
 
-        self.grid_map.tensor_data.heights = heights
+        self.grid_map.tensor_data["heights"] = heights
 
     def generate_crater(
         self,
@@ -493,7 +480,7 @@ class TerrainColoring:
                 "Sum of occupancy vector exceeds one! The vector has been normalized."
             )
 
-        self.grid_map.tensor_data.t_classes = self.generate_multi_terrain(occupancy)
+        self.grid_map.tensor_data["t_classes"] = self.generate_multi_terrain(occupancy)
         self.create_color_map(
             occupancy=occupancy,
             lower_threshold=lower_threshold,
@@ -536,7 +523,9 @@ class TerrainColoring:
             if i < len(thresholds) - 1:  # Ensure we don't go beyond the last class
                 t_classes[noise_data > threshold] = i + 1
 
-        t_classes = F.one_hot(t_classes.long(), num_classes=occupancy.shape[0])
+        t_classes = F.one_hot(
+            t_classes.long(), num_classes=occupancy.shape[0]
+        ).permute(2, 0, 1)
 
         return t_classes
 
@@ -558,7 +547,7 @@ class TerrainColoring:
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
         num_classes = occupancy.shape[0]
-        facecolors = -torch.argmax(self.grid_map.tensor_data.t_classes, dim=2)
+        facecolors = -torch.argmax(self.grid_map.tensor_data["t_classes"], dim=0)
         norm = matplotlib.colors.Normalize(vmin=-num_classes, vmax=0)
         colors = plt.cm.copper(norm(facecolors.cpu().numpy()))[:, :, 0:3]
         colors = torch.from_numpy(colors).permute(2, 0, 1)
@@ -582,7 +571,7 @@ class TerrainColoring:
         - upper_threshold (float): Upper threshold for light source height.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
-        heights = self.grid_map.tensor_data.heights
+        heights = self.grid_map.tensor_data["heights"]
 
         # calculate normal vector
         dx = heights[:, :-1] - heights[:, 1:]
@@ -608,4 +597,4 @@ class TerrainColoring:
         # cast shading to color image
         shade = torch.sum(light_source[:, None, None] * norm, axis=0, keepdims=True)
         color_shaded = shade * colors + ambient_intensity * colors
-        self.grid_map.tensor_data.colors = torch.clamp(color_shaded, 0, 1).squeeze()
+        self.grid_map.tensor_data["colors"] = torch.clamp(color_shaded, 0, 1).squeeze()
