@@ -7,7 +7,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import numpy as np
+import torch
 import matplotlib.pyplot as plt
 
 from src.environments.slip_model import SlipModel
@@ -16,12 +16,12 @@ from src.environments.slip_model import SlipModel
 model = SlipModel(slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1)
 
 # Create an array of slope angles (phi)
-phis = np.linspace(-30, 30, 500)  # Slope angles ranging from -10 to 10
+phis = torch.linspace(-30, 30, 500)  # Slope angles ranging from -10 to 10
 
 # Compute the observed slip values
-observed_slips = model.observe_slip(phis)
+observed_slips = model.observe_slip(phis).detach().numpy()
+actual_slips = model.latent_model(phis).detach().numpy()
 
-actual_slips = model.latent_model(phis)
 lowers = actual_slips - 2 * model.noise_scale
 uppers = actual_slips + 2 * model.noise_scale
 

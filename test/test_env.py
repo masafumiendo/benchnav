@@ -53,19 +53,24 @@ terrain_coloring.set_terrain_class_coloring(
 fig, axs = plt.subplots(1, 3, figsize=(18, 6))
 
 # Height Map
-axs[0].imshow(grid_map.tensor_data.heights.cpu().numpy(), cmap="turbo")
+axs[0].imshow(grid_map.tensor_data["heights"].cpu().numpy(), cmap="turbo")
 axs[0].set_title("Height Map")
 axs[0].axis("off")
 
 # Terrain Class Map
 terrain_class_map = axs[1].imshow(
-    np.argmax(grid_map.tensor_data.t_classes.cpu().numpy(), axis=2), cmap="viridis"
+    np.argmax(
+        grid_map.tensor_data["t_classes"].cpu().numpy().transpose(1, 2, 0), axis=2
+    ),
+    cmap="viridis",
 )
 axs[1].set_title("Terrain Class Map")
 axs[1].axis("off")
 
 # Color Map
-color_map = axs[2].imshow(grid_map.tensor_data.colors.cpu().numpy().transpose(1, 2, 0))
+color_map = axs[2].imshow(
+    grid_map.tensor_data["colors"].cpu().numpy().transpose(1, 2, 0)
+)
 axs[2].set_title("Color Map")
 axs[2].axis("off")
 

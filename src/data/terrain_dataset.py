@@ -51,6 +51,6 @@ class TerrainDataset(Dataset):
         - Tuple[torch.Tensor, torch.Tensor]: containing the color map and the mask map.
         """
         data_item = torch.load(self.file_paths[index])
-        color_map = data_item["color_map"]
-        terrain_class = data_item["terrain_class"]
+        color_map = data_item["colors"]
+        terrain_class = data_item["t_classes"]
         return color_map, terrain_class

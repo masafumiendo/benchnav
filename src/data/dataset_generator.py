@@ -9,9 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tqdm import tqdm
 from typing import Tuple
-import pickle
-import numpy as np
-from numpy.typing import NDArray
+import torch
 import multiprocessing
 
 from src.environments.env import GridMap
@@ -19,6 +17,7 @@ from src.environments.env import TerrainGeometry
 from src.environments.env import TerrainColoring
 from src.data.utils import ParamsTerrainGeometry
 from src.data.utils import ParamsTerrainColoring
+from src.utils.utils import set_randomness
 
 
 class DatasetGenerator:
@@ -108,15 +107,15 @@ class DatasetGenerator:
             base_instance_seed + self.environment_count * self.instance_count
         )
         file_path = os.path.join(
-            self.data_directory, self.data_split, "seed_information.npy"
+            self.data_directory, self.data_split, "seed_information.pt"
         )
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        np.save(
-            file_path,
+        torch.save(
             {
                 "environment_seed": environment_seed,
                 "last_instance_seed": last_instance_seed,
             },
+            file_path,
         )
 
     def set_seed(self) -> Tuple[int, int]:
@@ -130,64 +129,66 @@ class DatasetGenerator:
             environment_seed = 0
             base_instance_seed = 0
         elif self.data_split == "valid":
-            seed_information = np.load(
-                os.path.join(self.data_directory, "train", "seed_information.npy"),
-                allow_pickle=True,
-            ).item()
+            seed_information = torch.load(
+                os.path.join(self.data_directory, "train", "seed_information.pt")
+            )
             environment_seed = seed_information["environment_seed"]
             base_instance_seed = seed_information["last_instance_seed"]
         elif self.data_split == "test":
-            seed_information = np.load(
-                os.path.join(self.data_directory, "valid", "seed_information.npy"),
-                allow_pickle=True,
-            ).item()
+            seed_information = torch.load(
+                os.path.join(self.data_directory, "valid", "seed_information.pt")
+            )
             environment_seed = seed_information["environment_seed"]
             base_instance_seed = seed_information["last_instance_seed"]
         return environment_seed, base_instance_seed
 
-    def generate_occupancy_distribution(self, seed: int) -> NDArray[np.float_]:
+    def generate_occupancy_distribution(self, seed: int) -> torch.Tensor:
         """
-        Generates a distribution of terrain class occupancies for each environment.
+        Generates a distribution of terrain class occupancies for each environment using PyTorch.
 
         Parameters:
         - seed (int): The random seed for generating the occupancy distribution.
 
         Returns:
-        - NDArray[np.float_]: Occupancy distributions for every environment.
+        - torch.Tensor: Occupancy distributions for every environment.
         """
         # Set seed for reproducibility
-        rng = np.random.default_rng(seed)
+        set_randomness(seed)
 
-        occupancies = np.zeros((self.environment_count, self.num_total_terrain_classes))
+        occupancies = torch.zeros(
+            self.environment_count, self.num_total_terrain_classes
+        )
         for environment_index in range(self.environment_count):
-            selected_terrain_indices = rng.choice(
-                self.num_total_terrain_classes,
-                self.num_selected_terrain_classes,
-                replace=False,
+            selected_terrain_indices = torch.randperm(self.num_total_terrain_classes)[
+                : self.num_selected_terrain_classes
+            ]
+            occupancies[environment_index, selected_terrain_indices] = (
+                1 / self.num_selected_terrain_classes
             )
-            occupancies[environment_index, selected_terrain_indices] = 0.25
 
         self.balance_occupancy_distribution(occupancies)
         return occupancies
 
-    def balance_occupancy_distribution(self, occupancies: NDArray[np.float_]) -> None:
+    def balance_occupancy_distribution(self, occupancies: torch.Tensor) -> None:
         """
-        Balances the occupancy distribution to ensure that each terrain class has almost equal distribution.
+        Balances the occupancy distribution to ensure that each terrain class has almost equal distribution using PyTorch.
 
         Parameters:
-        - occupancies (NDArray[np.float_]): The occupancy distributions for all environments.
+        - occupancies (torch.Tensor): The occupancy distributions for all environments.
         """
         total_selections = self.num_selected_terrain_classes * self.environment_count
         expected_per_class = total_selections / self.num_total_terrain_classes
 
-        current_selections = np.sum(occupancies == 0.25, axis=0)
+        current_selections = torch.sum(
+            occupancies == 1 / self.num_selected_terrain_classes, dim=0
+        )
 
         # Balance occupancy distribution by swapping instances
         for _ in range(1000):
-            overrepresented_classes = np.where(current_selections > expected_per_class)[
-                0
-            ]
-            underrepresented_classes = np.where(
+            overrepresented_classes = torch.where(
+                current_selections > expected_per_class
+            )[0]
+            underrepresented_classes = torch.where(
                 current_selections < expected_per_class
             )[0]
 
@@ -196,14 +197,18 @@ class DatasetGenerator:
 
             for over in overrepresented_classes:
                 for under in underrepresented_classes:
-                    swap_candidates = np.nonzero(
-                        (occupancies[:, over] == 0.25) & (occupancies[:, under] == 0)
-                    )[0]
+                    swap_candidates = torch.nonzero(
+                        (occupancies[:, over] == 1 / self.num_selected_terrain_classes)
+                        & (occupancies[:, under] == 0),
+                        as_tuple=False,
+                    ).squeeze()
 
-                    if swap_candidates.size > 0:
-                        environment_index = swap_candidates[0]
+                    if swap_candidates.numel() > 0:
+                        environment_index = swap_candidates[0].item()
                         occupancies[environment_index, over] = 0
-                        occupancies[environment_index, under] = 0.25
+                        occupancies[environment_index, under] = (
+                            1 / self.num_selected_terrain_classes
+                        )
                         current_selections[over] -= 1
                         current_selections[under] += 1
                         break
@@ -227,11 +232,11 @@ class DatasetGenerator:
             file_path = os.path.join(
                 self.data_directory,
                 self.data_split,
-                f"{environment_index:03d}_{instance_index:03d}.pkl",
+                f"{environment_index:03d}_{instance_index:03d}.pt",
             )
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, "wb") as file:
-                pickle.dump(grid_map, file)
+
+            torch.save(grid_map.tensor_data, file_path)
 
             # Update instance seed
             instance_seed += 1
