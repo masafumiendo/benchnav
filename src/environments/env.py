@@ -463,7 +463,7 @@ class TerrainGeometry:
         Returns:
         - (torch.Tensor): Adjusted height data.
         """
-        return heights - torch.min(heights)
+        return heights - heights.min()
 
 
 class TerrainColoring:
