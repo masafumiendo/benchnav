@@ -12,9 +12,9 @@ from typing import Tuple
 import torch
 import multiprocessing
 
-from src.environments.env import GridMap
-from src.environments.env import TerrainGeometry
-from src.environments.env import TerrainColoring
+from environments.grid_map import GridMap
+from environments.grid_map import TerrainGeometry
+from environments.grid_map import TerrainColoring
 from src.data.utils import ParamsTerrainGeometry
 from src.data.utils import ParamsTerrainColoring
 from src.utils.utils import set_randomness
