@@ -523,9 +523,9 @@ class TerrainColoring:
             if i < len(thresholds) - 1:  # Ensure we don't go beyond the last class
                 t_classes[noise_data > threshold] = i + 1
 
-        t_classes = F.one_hot(
-            t_classes.long(), num_classes=occupancy.shape[0]
-        ).permute(2, 0, 1)
+        t_classes = F.one_hot(t_classes.long(), num_classes=occupancy.shape[0]).permute(
+            2, 0, 1
+        )
 
         return t_classes
 
