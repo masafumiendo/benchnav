@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 
 from src.environments.env import GridMap
@@ -38,7 +39,9 @@ terrain_geometry.set_terrain_geometry(
 
 # Set Terrain Coloring
 terrain_coloring = TerrainColoring(grid_map)
-occupancy = np.array([0.4, 0.1, 0.4, 0.1])  # Example occupancy ratios for terrain types
+occupancy = torch.tensor(
+    [0.4, 0.1, 0.4, 0.1]
+)  # Example occupancy ratios for terrain types
 lower_threshold = 0.8
 upper_threshold = 1
 ambient_intensity = 0.1
@@ -50,19 +53,19 @@ terrain_coloring.set_terrain_class_coloring(
 fig, axs = plt.subplots(1, 3, figsize=(18, 6))
 
 # Height Map
-axs[0].imshow(grid_map.data.height, cmap="turbo")
+axs[0].imshow(grid_map.tensor_data.heights.cpu().numpy(), cmap="turbo")
 axs[0].set_title("Height Map")
 axs[0].axis("off")
 
 # Terrain Class Map
 terrain_class_map = axs[1].imshow(
-    np.argmax(grid_map.data.t_class, axis=2), cmap="viridis"
+    np.argmax(grid_map.tensor_data.t_classes.cpu().numpy(), axis=2), cmap="viridis"
 )
 axs[1].set_title("Terrain Class Map")
 axs[1].axis("off")
 
 # Color Map
-color_map = axs[2].imshow(grid_map.data.color)
+color_map = axs[2].imshow(grid_map.tensor_data.colors.cpu().numpy().transpose(1, 2, 0))
 axs[2].set_title("Color Map")
 axs[2].axis("off")
 
