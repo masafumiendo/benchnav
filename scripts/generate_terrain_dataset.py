@@ -19,7 +19,7 @@ def main():
     script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_directory = os.path.join(
         script_directory,
-        f"../datasets/dataset{dataset_index:02d}/subset{subset_index:02d}/",
+        f"datasets/dataset{dataset_index:02d}/subset{subset_index:02d}/",
     )
     grid_size = 64
     resolution = 0.5
