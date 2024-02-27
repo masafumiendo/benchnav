@@ -49,7 +49,7 @@ class SlipModel:
         slip = self.latent_model(phi)
         # Generate slip with noise and then clip it to be within the range (-1, 1)
         if isinstance(phi, Tensor):
-            noisy_slip = slip + torch.normal(0, self.noise_scale, size=phi.shape)
+            noisy_slip = slip + torch.normal(0, self.noise_scale, size=phi.shape, device=phi.device)
         else:
             noisy_slip = slip + torch.normal(0, self.noise_scale, size=(1,))
         return torch.clamp(noisy_slip, -1, 1)
