@@ -69,7 +69,11 @@ plt.figure(figsize=(12, 6))
 plt.plot(phis.cpu().numpy(), observed_slips.cpu().numpy(), "k.", label="Observations")
 plt.plot(test_phis.cpu().numpy(), mean.cpu().numpy(), "b", label="Predicted")
 plt.fill_between(
-    test_phis.cpu().numpy(), lower.cpu().numpy(), upper.cpu().numpy(), alpha=0.5, color="blue"
+    test_phis.cpu().numpy(),
+    lower.cpu().numpy(),
+    upper.cpu().numpy(),
+    alpha=0.5,
+    color="blue",
 )
 plt.xlabel("Slope Angle (degrees)")
 plt.ylabel("Slip Ratio")

@@ -4,8 +4,7 @@ author: Masafumi Endo
 
 from dataclasses import dataclass, field
 from typing import Optional
-import numpy as np
-from numpy.typing import NDArray
+import torch
 
 
 @dataclass
@@ -61,13 +60,13 @@ class ParamsTerrainColoring:
     A structure containing parameters for terrain coloring generation. This class specifies how colors are applied to terrain based on various parameters such as occupancy, color thresholds, and ambient light intensity.
 
     Attributes:
-    - occupancy (Optional[NDArray[np.float_]]): A occupancy percentages array as floats that influence terrain color distribution. The sum of these values must exactly equal 1, representing a complete distribution across defined occupancy levels.
+    - occupancy (Optional[torch.Tensor]): A occupancy percentages array as floats that influence terrain color distribution. The sum of these values must exactly equal 1, representing a complete distribution across defined occupancy levels.
     - lower_threshold (Optional[float]): The minimum threshold value for color application, below which colors are not applied. Must be a value between 0 and 1.
     - upper_threshold (Optional[float]): The maximum threshold value for color application, above which colors are not applied. Must be greater than the lower_threshold and within the range of 0 to 1.
     - ambient_intensity (Optional[float]): The intensity of ambient light affecting the terrain color. This parameter is flexible and can be any float value, with no specific range constraints.
     """
 
-    occupancy: Optional[NDArray[np.float_]] = field(default=None)
+    occupancy: Optional[torch.Tensor] = field(default=None)
     lower_threshold: Optional[float] = field(default=None)
     upper_threshold: Optional[float] = field(default=None)
     ambient_intensity: Optional[float] = field(default=None)
