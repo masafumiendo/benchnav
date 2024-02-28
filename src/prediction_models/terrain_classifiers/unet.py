@@ -6,7 +6,7 @@ import torch
 import segmentation_models_pytorch as smp
 
 
-class UNet(smp.Unet):
+class Unet(smp.Unet):
     def __init__(
         self,
         classes: int,
@@ -21,7 +21,7 @@ class UNet(smp.Unet):
         - encoder_weights (str): Weights of the encoder.
         - classes (int): Number of classes for segmentation.
         """
-        super(UNet, self).__init__(
+        super(Unet, self).__init__(
             encoder_name=encoder_name, encoder_weights=encoder_weights, classes=classes
         )
 
@@ -35,4 +35,4 @@ class UNet(smp.Unet):
         Returns:
         - Tensor: Output tensor from the model as logits.
         """
-        return super(UNet, self).forward(x)
+        return super(Unet, self).forward(x)
