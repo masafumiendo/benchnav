@@ -59,10 +59,7 @@ axs[0].axis("off")
 
 # Terrain Class Map
 terrain_class_map = axs[1].imshow(
-    np.argmax(
-        grid_map.tensor_data["t_classes"].cpu().numpy().transpose(1, 2, 0), axis=2
-    ),
-    cmap="viridis",
+    grid_map.tensor_data["t_classes"].cpu().numpy(), cmap="jet"
 )
 axs[1].set_title("Terrain Class Map")
 axs[1].axis("off")

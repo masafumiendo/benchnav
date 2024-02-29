@@ -515,17 +515,13 @@ class TerrainColoring:
 
         # Convert occupancy ratios into cumulative percentages for thresholding
         thresholds = torch.cumsum(occupancy, dim=0) * 100
-        t_classes = torch.zeros_like(noise_data)
+        t_classes = torch.zeros_like(noise_data, dtype=torch.long)
 
         # Assign classes based on thresholds
         for i, threshold in enumerate(thresholds):
             # Ensure we don't go beyond the last class
             if i < len(thresholds) - 1:  # Ensure we don't go beyond the last class
                 t_classes[noise_data > threshold] = i + 1
-
-        t_classes = F.one_hot(t_classes.long(), num_classes=occupancy.shape[0]).permute(
-            2, 0, 1
-        )
 
         return t_classes
 
@@ -547,10 +543,10 @@ class TerrainColoring:
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
         num_classes = occupancy.shape[0]
-        facecolors = -torch.argmax(self.grid_map.tensor_data["t_classes"], dim=0)
-        norm = matplotlib.colors.Normalize(vmin=-num_classes, vmax=0)
+        facecolors = self.grid_map.tensor_data["t_classes"]
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=num_classes - 1)
         colors = plt.cm.copper(norm(facecolors.cpu().numpy()))[:, :, 0:3]
-        colors = torch.from_numpy(colors).permute(2, 0, 1)
+        colors = torch.from_numpy(colors).permute(2, 0, 1).to(torch.float32)
 
         # Apply shading to color map
         self.create_shading(colors, lower_threshold, upper_threshold, ambient_intensity)
@@ -576,7 +572,9 @@ class TerrainColoring:
         # calculate normal vector
         dx = heights[:, :-1] - heights[:, 1:]
         dy = heights[:-1, :] - heights[1:, :]
-        norm = torch.zeros((3, self.grid_map.grid_size, self.grid_map.grid_size))
+        norm = torch.zeros(
+            (3, self.grid_map.grid_size, self.grid_map.grid_size), dtype=torch.float32
+        )
         norm[0, :, :-1] += dx
         norm[0, :, 1:] += dx
         norm[0, :, 1:-1] /= 2
@@ -597,4 +595,5 @@ class TerrainColoring:
         # cast shading to color image
         shade = torch.sum(light_source[:, None, None] * norm, axis=0, keepdims=True)
         color_shaded = shade * colors + ambient_intensity * colors
+        color_shaded = torch.clamp(color_shaded, 0, 1).squeeze()
         self.grid_map.tensor_data["colors"] = torch.clamp(color_shaded, 0, 1).squeeze()
