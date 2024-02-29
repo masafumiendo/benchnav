@@ -159,7 +159,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Data directories
-# Ignoring the datasets directory because it contains large or dynamically generated data files
-# that should not be tracked in version control.
+# Data and model storing directories
+# Ignoring the datasets and trained model storing directory because it contains large or 
+# dynamically generated data files that should not be tracked in version control.
 datasets/
+trained_models/
