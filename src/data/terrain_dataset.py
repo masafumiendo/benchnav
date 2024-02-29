@@ -30,7 +30,7 @@ class TerrainDataset(Dataset):
         self.data_indices = [
             file
             for file in os.listdir(self.data_directory)
-            if file != "seed_information.npy"
+            if file != "seed_information.pt"
         ]
         self.file_paths = [
             os.path.join(self.data_directory, file_id) for file_id in self.data_indices
@@ -51,6 +51,6 @@ class TerrainDataset(Dataset):
         - Tuple[torch.Tensor, torch.Tensor]: containing the color map and the mask map.
         """
         data_item = torch.load(self.file_paths[index])
-        color_map = data_item["colors"]
-        terrain_class = data_item["t_classes"]
-        return color_map, terrain_class
+        colors = data_item["colors"]
+        t_classes = data_item["t_classes"]
+        return colors, t_classes
