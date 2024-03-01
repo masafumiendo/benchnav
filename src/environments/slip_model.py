@@ -12,11 +12,12 @@ from src.utils.utils import set_randomness
 class SlipModel:
     def __init__(
         self,
+        device: Optional[str],
         slip_sensitivity: float,
         slip_nonlinearity: float,
         slip_offset: float,
         base_noise_scale: float = 0.05,
-        slope_noise_scale: float = 0.005,
+        slope_noise_scale: float = 0,
         phi_bound: float = 45,
         seed: Optional[int] = None,
     ) -> None:
@@ -24,20 +25,28 @@ class SlipModel:
         Initialize SlipModelTorch class.
 
         Parameters:
+        - device (Optional[str]): Device to run the model on.
         - slip_sensitivity (float): Sensitivity of slip to slope.
         - slip_nonlinearity (float): Nonlinearity of slip to slope.
         - slip_offset (float): Offset of slip.
         - base_noise_scale (float): Base scale of noise.
         - slope_noise_scale (float): Scale of noise increase with slope.
-        - phi_bound (float): Bound of slope angle to generate heteroscedastic noise scales.
+        - phi_bound (float): Bound of slope angle to generate heteroscedastic noise scales (-phi_bound, phi_bound).
         - seed (Optional[int]): Random seed for reproducibility.
         """
+        self.device = (
+            device
+            if device is not None
+            else "cuda:0"
+            if torch.cuda.is_available()
+            else "cpu"
+        )
         self.slip_sensitivity = slip_sensitivity
         self.slip_nonlinearity = slip_nonlinearity
         self.slip_offset = slip_offset
         self.base_noise_scale = base_noise_scale
         self.slope_noise_scale = slope_noise_scale
-        self.phis_range = torch.linspace(-phi_bound, phi_bound, 100)
+        self.phis_range = torch.linspace(-phi_bound, phi_bound, 100).to(self.device)
         self.heteroscedastic_noise_scales = (
             self.initialize_heteroscedastic_noise_scales()
         )

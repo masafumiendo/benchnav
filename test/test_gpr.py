@@ -17,7 +17,9 @@ from src.prediction_models.slip_regressors.gpr import GPModel
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the SlipModel
-slip_model = SlipModel(slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1)
+slip_model = SlipModel(
+    device=DEVICE, slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1
+)
 
 # Generate synthetic data
 phis = torch.linspace(-30, 30, 1000).to(device=DEVICE)
@@ -75,6 +77,8 @@ plt.fill_between(
     alpha=0.5,
     color="blue",
 )
+plt.xlim(-30, 30)
+plt.ylim(-1, 1)
 plt.xlabel("Slope Angle (degrees)")
 plt.ylabel("Slip Ratio")
 plt.legend()
