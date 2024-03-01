@@ -15,7 +15,9 @@ class SlipModel:
         slip_sensitivity: float,
         slip_nonlinearity: float,
         slip_offset: float,
-        noise_scale: float = 0.05,
+        base_noise_scale: float = 0.05,
+        slope_noise_scale: float = 0.005,
+        phi_bound: float = 45,
         seed: Optional[int] = None,
     ) -> None:
         """
@@ -25,14 +27,33 @@ class SlipModel:
         - slip_sensitivity (float): Sensitivity of slip to slope.
         - slip_nonlinearity (float): Nonlinearity of slip to slope.
         - slip_offset (float): Offset of slip.
-        - noise_scale (float): Scale of noise.
+        - base_noise_scale (float): Base scale of noise.
+        - slope_noise_scale (float): Scale of noise increase with slope.
+        - phi_bound (float): Bound of slope angle to generate heteroscedastic noise scales.
         - seed (Optional[int]): Random seed for reproducibility.
         """
         self.slip_sensitivity = slip_sensitivity
         self.slip_nonlinearity = slip_nonlinearity
         self.slip_offset = slip_offset
-        self.noise_scale = noise_scale
+        self.base_noise_scale = base_noise_scale
+        self.slope_noise_scale = slope_noise_scale
+        self.phis_range = torch.linspace(-phi_bound, phi_bound, 100)
+        self.heteroscedastic_noise_scales = (
+            self.initialize_heteroscedastic_noise_scales()
+        )
         set_randomness(seed) if seed is not None else None
+
+    def initialize_heteroscedastic_noise_scales(self) -> Tensor:
+        """
+        Initialize the heteroscedastic noise scale for the model.
+        
+        Returns:
+        - noise_scale (Tensor): Heteroscedastic noise scale for the model.
+        """
+        noise_scales = (
+            self.base_noise_scale + torch.abs(self.phis_range) * self.slope_noise_scale
+        )
+        return noise_scales
 
     def observe_slip(self, phi: Union[float, Tensor]) -> Union[float, Tensor]:
         """
@@ -47,14 +68,21 @@ class SlipModel:
                                        can be a single value or a tensor of values depending on the input.
         """
         slip = self.latent_model(phi)
-        # Generate slip with noise and then clip it to be within the range (-1, 1)
-        if isinstance(phi, Tensor):
-            noisy_slip = slip + torch.normal(
-                0, self.noise_scale, size=phi.shape, device=phi.device
-            )
-        else:
-            noisy_slip = slip + torch.normal(0, self.noise_scale, size=(1,))
-        return torch.clamp(noisy_slip, -1, 1)
+        phi_tensor = (
+            phi if isinstance(phi, Tensor) else torch.tensor([phi], dtype=torch.float32)
+        )
+
+        # Find the noise scale for the given slope angle
+        indices = torch.argmin(torch.abs(self.phis_range[:, None] - phi_tensor), dim=0)
+        noise_scales = self.heteroscedastic_noise_scales[indices]
+
+        # Generate noise and add it to the slip
+        noisy_slip = slip + torch.randn_like(slip) * noise_scales
+        return (
+            torch.clamp(noisy_slip, -1, 1).squeeze()
+            if not isinstance(phi, Tensor)
+            else torch.clamp(noisy_slip, -1, 1)
+        )
 
     def latent_model(self, phi: Union[float, Tensor]) -> Union[float, Tensor]:
         """
