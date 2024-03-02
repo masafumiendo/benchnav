@@ -30,7 +30,7 @@ actual_slips = model.latent_model(phis).cpu().numpy()
 
 # Compute dynamic noise scales for the visualization
 # Assuming the model has methods or attributes to compute or retrieve the dynamic noise scale for each phi
-noise_scales = model.base_noise_scale + torch.abs(phis) * model.slope_noise_scale
+noise_scales = model.noise_model(phis)
 lowers = (
     actual_slips - 2 * noise_scales.cpu().numpy()
 )  # Assuming 2 standard deviations for the bounds
@@ -63,3 +63,6 @@ plt.title("Slip Ratio vs. Slope Angle with Heteroscedastic Noise")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+phi = 10.0
+observed_slip = model.observe_slip(phi)
