@@ -21,7 +21,7 @@ class SlipModel:
         seed: Optional[int] = None,
     ) -> None:
         """
-        Initialize SlipModelTorch class.
+        Initialize SlipModel class.
 
         Parameters:
         - device (Optional[str]): Device to run the model on.
