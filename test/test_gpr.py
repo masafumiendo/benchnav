@@ -52,19 +52,12 @@ for i in range(training_iterations):
     print(f"Iteration {i+1}/{training_iterations} - Loss: {loss.item()}")
     optimizer.step()
 
-# Set the model and likelihood to evaluation mode
-model.eval()
-likelihood.eval()
-
 # Generate test data
 test_phis = torch.linspace(-30, 30, 100).to(device=DEVICE)
 test_slips = slip_model.observe_slip(test_phis)
 
 # Make predictions
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    observed_pred = likelihood(model(test_phis))
-    mean = observed_pred.mean
-    lower, upper = observed_pred.confidence_region()
+mean, lower, upper = model.predict(test_phis)
 
 # Plot the results
 plt.figure(figsize=(12, 6))
