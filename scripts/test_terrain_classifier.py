@@ -7,7 +7,6 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import torch
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
@@ -49,7 +48,17 @@ def main(device: str) -> None:
         save_interval=None,
         device=device,
     )
-    model = load_model_state_dict(model, model_directory, params_model_training)
+    # Load the trained model
+    model_directory = os.path.join(
+        model_directory,
+        f"bs{params_model_training.batch_size:03d}_"
+        f"lr{params_model_training.learning_rate:.0e}_"
+        f"wd{params_model_training.weight_decay:.0e}_"
+        f"epochs{params_model_training.num_epochs:03d}",
+        "models/best_model.pth",
+    )
+
+    model = load_model_state_dict(model, model_directory, device)
 
     # Load the test dataset
     test_dataset = TerrainDataset(data_directory, "test")
@@ -88,4 +97,4 @@ def main(device: str) -> None:
 
 
 if __name__ == "__main__":
-    main("cuda:1")
+    main("cuda:0")

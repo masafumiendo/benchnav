@@ -13,8 +13,8 @@ import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-
 from torch.nn import Module
+
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.data.terrain_dataset import TerrainDataset
 
