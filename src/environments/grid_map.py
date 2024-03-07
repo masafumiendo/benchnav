@@ -19,9 +19,8 @@ class GridMap:
         self,
         grid_size: int,
         resolution: float,
-        roughness_exponent: float = 0.8,
-        amplitude_gain: float = 10,
         seed: Optional[int] = None,
+        tensor_data: Optional[dict[torch.Tensor]] = None,
     ) -> None:
         """
         Initialize the grid map.
@@ -29,8 +28,7 @@ class GridMap:
         Parameters:
         - grid_size (int): Number of grids along one axis.
         - resolution (float): Resolution of each grid in meters.
-        - roughness_exponent (float): Roughness exponent for the fractal surface, between 0 and 1.
-        - amplitude_gain (float): Amplitude gain for the fractal surface.
+        - tensor_data (Optional[dict[torch.Tensor]]): Data structure for terrain information.
         - seed (Optional[int]): Seed for random number generation.
         """
         self.grid_size = grid_size
@@ -39,10 +37,11 @@ class GridMap:
         self.lower_left_x = self.center_x - grid_size / 2 * resolution
         self.lower_left_y = self.center_y - grid_size / 2 * resolution
         self.num_grids = grid_size ** 2
-        self.tensor_data = self.initialize_data(self.grid_size)
-        self.roughness_exponent = roughness_exponent
-        self.amplitude_gain = amplitude_gain
         set_randomness(seed) if seed is not None else None
+        # Initialize data structure for terrain information
+        self.tensor_data = (
+            tensor_data if tensor_data is not None else self.initialize_data(grid_size)
+        )
 
     @staticmethod
     def initialize_data(grid_size: int) -> dict:
@@ -199,25 +198,34 @@ class GridMap:
 
 
 class TerrainGeometry:
-    def __init__(self, grid_map: GridMap):
+    def __init__(
+        self,
+        grid_map: GridMap,
+        roughness_exponent: float = 0.8,
+        amplitude_gain: float = 10,
+    ):
         """
         Initialize terrain geometry.
 
         Parameters:
         - grid_map (GridMap): An instance of GridMap.
+        - roughness_exponent (float): Roughness exponent for the fractal surface, between 0 and 1.
+        - amplitude_gain (float): Amplitude gain for the fractal surface.
         """
         self.grid_map = grid_map
+        self.roughness_exponent = roughness_exponent
+        self.amplitude_gain = amplitude_gain
 
     def set_terrain_geometry(
         self,
         is_fractal: bool = True,
         is_crater: bool = True,
-        num_craters: Optional[int] = 5,
+        num_craters: Optional[int] = 3,
         crater_margin: Optional[float] = 5,
         min_angle: Optional[float] = 10,
         max_angle: Optional[float] = 20,
-        min_radius: Optional[float] = 10,
-        max_radius: Optional[float] = 20,
+        min_radius: Optional[float] = 5,
+        max_radius: Optional[float] = 10,
         start_pos: Optional[torch.Tensor] = None,
         goal_pos: Optional[torch.Tensor] = None,
         safety_margin: Optional[float] = 5,
@@ -235,7 +243,7 @@ class TerrainGeometry:
         - start_pos (Optional[torch.Tensor]), goal_pos (Optional[torch.Tensor]): Start and goal positions, to avoid craters close by.
         - safety_margin (float): Margin around start and goal positions to avoid placing craters.
         """
-        # Initialize terrain height data
+        # Initialize terrain height and slope tensors
         heights = torch.zeros((self.grid_map.grid_size, self.grid_map.grid_size))
 
         # Apply crater geometry if necessary
@@ -250,6 +258,8 @@ class TerrainGeometry:
                 crater_positions = torch.empty((0, 2))
             crater_radii = torch.full((crater_positions.shape[0],), safety_margin)
 
+            # Place craters
+            count = 0
             while craters_placed < num_craters:
                 crater_center = (
                     torch.rand(2)
@@ -284,10 +294,18 @@ class TerrainGeometry:
                     )
                     craters_placed += 1
 
+                count += 1
+                if count > 1000:
+                    warnings.warn(
+                        "Failed to place all craters after 1000 attempts. Consider adjusting the parameters."
+                    )
+                    break
+
         if is_fractal:
             heights = self.generate_fractal_surface(heights)
 
         self.grid_map.tensor_data["heights"] = heights
+        self.grid_map.tensor_data["slopes"] = self.generate_slopes(heights)
 
     def generate_crater(
         self,
@@ -388,8 +406,8 @@ class TerrainGeometry:
         """
         device = heights.device
         size = self.grid_map.grid_size
-        roughness_exponent = self.grid_map.roughness_exponent
-        amplitude_gain = self.grid_map.amplitude_gain
+        roughness_exponent = self.roughness_exponent
+        amplitude_gain = self.amplitude_gain
         resolution = self.grid_map.resolution
 
         grid = torch.zeros((size, size), dtype=torch.complex64, device=device)
@@ -452,6 +470,42 @@ class TerrainGeometry:
         """
         return heights - heights.min()
 
+    def generate_slopes(self, heights: torch.Tensor) -> torch.Tensor:
+        """
+        Generates slope values based on the given height data by following Horn's method.
+
+        Parameters:
+        - heights (torch.Tensor): The original height data.
+
+        Returns:
+        - (torch.Tensor): Generated slope data in degrees. Note that the edges are assigned inf.
+        """
+        sobel_x = torch.tensor(
+            [[[[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]]], dtype=torch.float32
+        )
+        sobel_y = torch.tensor(
+            [[[[-1, -2, -1], [0, 0, 0], [1, 2, 1]]]], dtype=torch.float32
+        )
+
+        heights = heights.unsqueeze(0).unsqueeze(0)
+
+        gradient_x = F.conv2d(heights, sobel_x, padding=1) / (
+            8 * self.grid_map.resolution
+        )
+        gradient_y = F.conv2d(heights, sobel_y, padding=1) / (
+            8 * self.grid_map.resolution
+        )
+
+        slopes = torch.atan(torch.sqrt(gradient_x.pow(2) + gradient_y.pow(2)))
+        slopes = torch.rad2deg(slopes).squeeze()
+
+        # Assign inf to edges
+        slopes[0, :] = torch.inf
+        slopes[-1, :] = torch.inf
+        slopes[:, 0] = torch.inf
+        slopes[:, -1] = torch.inf
+        return slopes
+
 
 class TerrainColoring:
     def __init__(self, grid_map: GridMap) -> None:
@@ -459,7 +513,7 @@ class TerrainColoring:
 
     def set_terrain_class_coloring(
         self,
-        occupancy: torch.Tensor,
+        occupancy: Optional[torch.Tensor] = None,
         lower_threshold: float = 0.8,
         upper_threshold: float = 1,
         ambient_intensity: float = 0.1,
@@ -469,11 +523,14 @@ class TerrainColoring:
         based on the terrain class distribution.
 
         Parameters:
-        - occupancy (torch.Tensor): Occupancy ratios for different terrain classes.
+        - occupancy (Optional[torch.Tensor]): Occupancy ratios for different terrain classes.
         - lower_threshold (float): Lower threshold for shading effect.
         - upper_threshold (float): Upper threshold for shading effect.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
+        if occupancy is None:
+            occupancy = torch.tensor([1.0])
+
         if occupancy.sum() > 1:
             occupancy /= occupancy.sum()
             warnings.warn(

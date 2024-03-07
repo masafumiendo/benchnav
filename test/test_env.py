@@ -7,7 +7,6 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
@@ -18,11 +17,9 @@ from environments.grid_map import TerrainColoring
 # Initialize GridMap
 grid_size = 64
 resolution = 0.5
-roughness_exponent = 0.8
-amplitude_gain = 10
 seed = 1
 
-grid_map = GridMap(grid_size, resolution, roughness_exponent, amplitude_gain, seed)
+grid_map = GridMap(grid_size, resolution, seed)
 
 # Set Terrain Geometry
 terrain_geometry = TerrainGeometry(grid_map)
@@ -50,25 +47,30 @@ terrain_coloring.set_terrain_class_coloring(
 )
 
 # Visualization
-fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+fig, axs = plt.subplots(1, 4, figsize=(18, 6))
 
 # Height Map
 axs[0].imshow(grid_map.tensor_data["heights"].cpu().numpy(), cmap="turbo")
 axs[0].set_title("Height Map")
 axs[0].axis("off")
 
-# Terrain Class Map
-terrain_class_map = axs[1].imshow(
-    grid_map.tensor_data["t_classes"].cpu().numpy(), cmap="jet"
-)
-axs[1].set_title("Terrain Class Map")
+# Slope Map
+axs[1].imshow(grid_map.tensor_data["slopes"].cpu().numpy(), cmap="turbo")
+axs[1].set_title("Slope Map")
 axs[1].axis("off")
 
+# Terrain Class Map
+terrain_class_map = axs[2].imshow(
+    grid_map.tensor_data["t_classes"].cpu().numpy(), cmap="jet"
+)
+axs[2].set_title("Terrain Class Map")
+axs[2].axis("off")
+
 # Color Map
-color_map = axs[2].imshow(
+color_map = axs[3].imshow(
     grid_map.tensor_data["colors"].cpu().numpy().transpose(1, 2, 0)
 )
-axs[2].set_title("Color Map")
-axs[2].axis("off")
+axs[3].set_title("Color Map")
+axs[3].axis("off")
 
 plt.show()
