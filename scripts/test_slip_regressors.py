@@ -42,10 +42,11 @@ def main(device: str) -> None:
         f"lr{params_model_training.learning_rate:.0e}_"
         f"iters{params_model_training.num_iterations:03d}",
     )
+    # Set the data directory
+    data_directory = os.path.join(
+        script_directory, f"datasets/dataset{dataset_index:02d}/slip_models/"
+    )
 
-    # Prepare the test data
-    x = torch.empty(0).to(device=device)
-    y = torch.empty(0).to(device=device)
     likelihood = GaussianLikelihood().to(device=device)
 
     # Set the test inputs
@@ -59,8 +60,12 @@ def main(device: str) -> None:
 
     # Load all the trained and actual models and test them
     for i in range(10):
+        # Load the training data
+        train_data = torch.load(os.path.join(data_directory, f"{i:02d}_class_data.pth"))
+        train_x = train_data["train_x"].to(device=device)
+        train_y = train_data["train_y"].to(device=device)
         # Initialize the GP model
-        model = GPModel(x, y, likelihood).to(device)
+        model = GPModel(train_x, train_y, likelihood).to(device)
 
         # Load the trained model
         model = load_model_state_dict(

@@ -24,6 +24,7 @@ class RegressorTrainer:
         self,
         device: Optional[str],
         model_directory: str,
+        data_directory: str,
         num_terrain_classes: int,
         slip_sensitivity_minmax: Tuple[float, float],
         slip_nonlinearity_minmax: Tuple[float, float],
@@ -37,6 +38,7 @@ class RegressorTrainer:
         Parameters:
         - device (str): the device to use for training
         - model_directory (str): the directory containing the model file. No need to specify training parameters.
+        - data_directory (str): the directory containing the data files
         - num_terrain_classes (int): the number of terrain classes
         - slip_sensitivity_minmax (Tuple[float, float]): the min and max value of the slip sensitivity.
         - slip_nonlinearity_minmax (Tuple[float, float]): the min and max value of the slip nonlinearity.
@@ -71,16 +73,18 @@ class RegressorTrainer:
             f"lr{self.params_model_training.learning_rate:.0e}_"
             f"iters{self.params_model_training.num_iterations:03d}",
         )
-        self.actual_models_directory = os.path.join(
-            self.model_directory, "actual_models"
-        )
         self.learned_models_directory = os.path.join(
             self.model_directory, "learned_models"
         )
-        if not os.path.exists(self.actual_models_directory):
-            os.makedirs(self.actual_models_directory)
         if not os.path.exists(self.learned_models_directory):
             os.makedirs(self.learned_models_directory)
+
+        # Create the data directory if it does not exist
+        if not os.path.exists(data_directory):
+            os.makedirs(data_directory)
+        self.data_directory = os.path.join(data_directory, "slip_models")
+        if not os.path.exists(self.data_directory):
+            os.makedirs(self.data_directory)
 
     def validate_minmax(self, minmax: Tuple[float, float]) -> Tuple[float, float]:
         """
@@ -150,12 +154,13 @@ class RegressorTrainer:
             loss = -mll(output, observed_slips)
             loss.backward()
             optimizer.step()
-            print(
-                f"Iteration {i+1}/{self.params_model_training.num_iterations} - Loss: {loss.item()}"
-            )
+            if (i + 1) % 10 == 0:
+                print(
+                    f"Iteration {i+1}/{self.params_model_training.num_iterations} - Loss: {loss.item()}"
+                )
 
         # Save the actual and learned slip models
-        self.save(slip_model, model, terrain_class)
+        self.save(slip_model, phis, observed_slips, model, terrain_class)
 
     def set_slip_model_parameters(
         self, terrain_class: int
@@ -204,24 +209,36 @@ class RegressorTrainer:
         samples = torch.rand(num_samples) * (max_val - min_val) + min_val
         return samples if num_samples > 1 else samples.item()
 
-    def save(self, slip_model: SlipModel, model: Module, terrain_class: int) -> None:
+    def save(
+        self,
+        slip_model: SlipModel,
+        train_x: torch.Tensor,
+        train_y: torch.Tensor,
+        model: Module,
+        terrain_class: int,
+    ) -> None:
         """
         Save the actual and learned slip models.
 
         Parameters:
         - slip_model (SlipModel): the actual slip model
+        - train_x (torch.Tensor): the training inputs
+        - train_y (torch.Tensor): the training outputs
         - model (Module): the learned regressor model
         - terrain_class (int): the terrain class
         """
         # Save the actual slip model
         with open(
-            os.path.join(
-                self.actual_models_directory,
-                f"../{terrain_class:02d}_terrain_class_model.pkl",
-            ),
+            os.path.join(self.data_directory, f"{terrain_class:02d}_class_model.pkl"),
             "wb",
         ) as f:
             pickle.dump(slip_model, f)
+
+        # Save the training inputs and outputs as a dictionary
+        torch.save(
+            {"train_x": train_x, "train_y": train_y},
+            os.path.join(self.data_directory, f"{terrain_class:02d}_class_data.pth"),
+        )
 
         # Save the learned regressor model
         torch.save(

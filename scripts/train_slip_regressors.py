@@ -27,6 +27,9 @@ def main(device: str) -> None:
         script_directory,
         f"trained_models/dataset{dataset_index:02d}/subset{subset_index:02d}/GPR/",
     )
+    data_directory = os.path.join(
+        script_directory, f"datasets/dataset{dataset_index:02d}/"
+    )
 
     # Set the parameters for model training
     params_model_training = ParamsModelTraining(
@@ -37,6 +40,7 @@ def main(device: str) -> None:
     trainer = RegressorTrainer(
         device=device,
         model_directory=model_directory,
+        data_directory=data_directory,
         num_terrain_classes=10,
         slip_sensitivity_minmax=(1.0, 9.0),
         slip_nonlinearity_minmax=(1.4, 2.0),
