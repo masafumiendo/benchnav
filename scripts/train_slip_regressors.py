@@ -21,11 +21,9 @@ def main(device: str) -> None:
 
     # Set the model directory
     dataset_index = 1
-    subset_index = 1
     script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     model_directory = os.path.join(
-        script_directory,
-        f"trained_models/dataset{dataset_index:02d}/subset{subset_index:02d}/GPR/",
+        script_directory, f"trained_models/dataset{dataset_index:02d}/GPR/"
     )
     data_directory = os.path.join(
         script_directory, f"datasets/dataset{dataset_index:02d}/"

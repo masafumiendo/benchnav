@@ -31,13 +31,11 @@ def main(device: str) -> None:
     subset_index = 1
     script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_directory = os.path.join(
-        script_directory,
-        f"datasets/dataset{dataset_index:02d}/subset{subset_index:02d}/",
+        script_directory, f"datasets/dataset{dataset_index:02d}/"
     )
     # Set the model directory
     model_directory = os.path.join(
-        script_directory,
-        f"trained_models/dataset{dataset_index:02d}/subset{subset_index:02d}/Unet/",
+        script_directory, f"trained_models/dataset{dataset_index:02d}/Unet/"
     )
     # Set the parameters for model training
     params_model_training = ParamsModelTraining(
@@ -61,7 +59,7 @@ def main(device: str) -> None:
     model = load_model_state_dict(model, model_directory, device)
 
     # Load the test dataset
-    test_dataset = TerrainDataset(data_directory, "test")
+    test_dataset = TerrainDataset(data_directory, "test", subset_index)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     # Test the model

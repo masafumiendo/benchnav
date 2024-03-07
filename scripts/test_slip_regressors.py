@@ -61,7 +61,9 @@ def main(device: str) -> None:
     # Load all the trained and actual models and test them
     for i in range(10):
         # Load the training data
-        train_data = torch.load(os.path.join(data_directory, f"{i:02d}_class_data.pth"))
+        train_data = torch.load(
+            os.path.join(data_directory, f"observations/{i:02d}_class.pth")
+        )
         train_x = train_data["train_x"].to(device=device)
         train_y = train_data["train_y"].to(device=device)
         # Initialize the GP model
@@ -70,9 +72,7 @@ def main(device: str) -> None:
         # Load the trained model
         model = load_model_state_dict(
             model=model,
-            model_directory=os.path.join(
-                model_directory, f"learned_models/{i:02d}_terrain_class_model.pth"
-            ),
+            model_directory=os.path.join(model_directory, f"models/{i:02d}_class.pth"),
             device=device,
         )
 
@@ -80,12 +80,7 @@ def main(device: str) -> None:
         mean, lower, upper = model.predict(test_phis)
 
         # Load the actual model for reference
-        with open(
-            os.path.join(
-                model_directory, f"actual_models/{i:02d}_terrain_class_model.pkl"
-            ),
-            "rb",
-        ) as f:
+        with open(os.path.join(data_directory, f"models/{i:02d}_class.pkl"), "rb") as f:
             slip_model = pickle.load(f)
         test_slips = slip_model.observe_slip(test_phis)
 

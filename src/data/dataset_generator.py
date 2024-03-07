@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tqdm import tqdm
-from typing import Tuple
+from typing import Tuple, Optional
 import torch
 import multiprocessing
 
@@ -33,6 +33,7 @@ class DatasetGenerator:
         num_selected_terrain_classes: int = 4,
         params_terrain_geometry: ParamsTerrainGeometry = None,
         params_terrain_coloring: ParamsTerrainColoring = None,
+        subset_index: Optional[int] = None,
     ) -> None:
         """
         Initializes the DatasetGenerator with the specified parameters.
@@ -48,19 +49,27 @@ class DatasetGenerator:
         - num_selected_terrain_classes (int): The number of terrain classes to select for each environment.
         - params_terrain_geometry (ParamsTerrainGeometry): The parameters for the terrain geometry.
         - params_terrain_coloring (ParamsTerrainColoring): The parameters for the terrain coloring.
+        - subset_index (Optional[int]): The index of the subset for the test split.
         """
         # Validate the data_split argument
         if data_split not in ["train", "valid", "test"]:
             raise ValueError("data_split must be one of 'train', 'valid', 'test'")
+        if data_split == "test" and subset_index is None:
+            raise ValueError("subset_index must be specified for generating test data.")
         self.data_directory = data_directory
         self.data_split = data_split
+        self.subset_index = (
+            subset_index if data_split == "test" else None
+        )  # make sure subset_index is None for train and valid
 
         self.grid_size = grid_size
         self.resolution = resolution
+
         self.environment_count = environment_count
         self.instance_count = instance_count
         self.num_total_terrain_classes = num_total_terrain_classes
         self.num_selected_terrain_classes = num_selected_terrain_classes
+
         self.params_terrain_geometry = params_terrain_geometry
         self.params_terrain_coloring = params_terrain_coloring
 
@@ -106,9 +115,17 @@ class DatasetGenerator:
         last_instance_seed = (
             base_instance_seed + self.environment_count * self.instance_count
         )
-        file_path = os.path.join(
-            self.data_directory, self.data_split, "seed_information.pt"
-        )
+        if self.data_split == "test":
+            file_path = os.path.join(
+                self.data_directory,
+                self.data_split,
+                f"subset{self.subset_index:02d}",
+                "seed_information.pt",
+            )
+        else:
+            file_path = os.path.join(
+                self.data_directory, self.data_split, "seed_information.pt"
+            )
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         torch.save(
             {
@@ -135,9 +152,23 @@ class DatasetGenerator:
             environment_seed = seed_information["environment_seed"]
             base_instance_seed = seed_information["last_instance_seed"]
         elif self.data_split == "test":
-            seed_information = torch.load(
-                os.path.join(self.data_directory, "valid", "seed_information.pt")
-            )
+            if self.subset_index is None:
+                raise ValueError(
+                    "subset_index must be specified for generating test data."
+                )
+
+            if self.subset_index == 1:
+                data_directory = os.path.join(
+                    self.data_directory, "valid", "seed_information.pt"
+                )
+            else:
+                data_directory = os.path.join(
+                    self.data_directory,
+                    "test",
+                    f"subset{self.subset_index - 1:02d}",
+                    "seed_information.pt",
+                )
+            seed_information = torch.load(data_directory)
             environment_seed = seed_information["environment_seed"]
             base_instance_seed = seed_information["last_instance_seed"]
         return environment_seed, base_instance_seed
@@ -229,11 +260,21 @@ class DatasetGenerator:
             grid_map = self.generate_map_instance(seed=instance_seed)
 
             # Save map instance
-            file_path = os.path.join(
-                self.data_directory,
-                self.data_split,
-                f"{environment_index:03d}_{instance_index:03d}.pt",
-            )
+            if self.data_split == "test":
+                # Save map instance with subset index
+                file_path = os.path.join(
+                    self.data_directory,
+                    self.data_split,
+                    f"subset{self.subset_index:02d}",
+                    f"{environment_index:03d}_{instance_index:03d}.pt",
+                )
+            else:
+                # Save map instance without subset index
+                file_path = os.path.join(
+                    self.data_directory,
+                    self.data_split,
+                    f"{environment_index:03d}_{instance_index:03d}.pt",
+                )
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
             torch.save(grid_map.tensor_data, file_path)

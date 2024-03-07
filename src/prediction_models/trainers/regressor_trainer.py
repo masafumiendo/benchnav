@@ -73,9 +73,7 @@ class RegressorTrainer:
             f"lr{self.params_model_training.learning_rate:.0e}_"
             f"iters{self.params_model_training.num_iterations:03d}",
         )
-        self.learned_models_directory = os.path.join(
-            self.model_directory, "learned_models"
-        )
+        self.learned_models_directory = os.path.join(self.model_directory, "models")
         if not os.path.exists(self.learned_models_directory):
             os.makedirs(self.learned_models_directory)
 
@@ -84,7 +82,8 @@ class RegressorTrainer:
             os.makedirs(data_directory)
         self.data_directory = os.path.join(data_directory, "slip_models")
         if not os.path.exists(self.data_directory):
-            os.makedirs(self.data_directory)
+            os.makedirs(os.path.join(self.data_directory, "models"))
+            os.makedirs(os.path.join(self.data_directory, "observations"))
 
     def validate_minmax(self, minmax: Tuple[float, float]) -> Tuple[float, float]:
         """
@@ -229,7 +228,7 @@ class RegressorTrainer:
         """
         # Save the actual slip model
         with open(
-            os.path.join(self.data_directory, f"{terrain_class:02d}_class_model.pkl"),
+            os.path.join(self.data_directory, f"models/{terrain_class:02d}_class.pkl"),
             "wb",
         ) as f:
             pickle.dump(slip_model, f)
@@ -237,14 +236,15 @@ class RegressorTrainer:
         # Save the training inputs and outputs as a dictionary
         torch.save(
             {"train_x": train_x, "train_y": train_y},
-            os.path.join(self.data_directory, f"{terrain_class:02d}_class_data.pth"),
+            os.path.join(
+                self.data_directory, f"observations/{terrain_class:02d}_class.pth"
+            ),
         )
 
         # Save the learned regressor model
         torch.save(
             model.state_dict(),
             os.path.join(
-                self.learned_models_directory,
-                f"{terrain_class:02d}_terrain_class_model.pth",
+                self.learned_models_directory, f"{terrain_class:02d}_class.pth"
             ),
         )

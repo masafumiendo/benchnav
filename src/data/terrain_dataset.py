@@ -3,7 +3,7 @@ author: Masafumi Endo
 """
 
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 import torch
 from torch.utils.data import Dataset
 
@@ -14,19 +14,29 @@ class TerrainDataset(Dataset):
     Supports loading color maps and mask maps as well as converting them into a format suitable for model training or evaluation.
     """
 
-    def __init__(self, data_directory: str, data_split: str):
+    def __init__(
+        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+    ):
         """
         Initializes the TerrainDataset with the specified directory, and data split.
 
         Parameters:
         - data_directory (str): The directory containing the dataset.
         - data_split (str): The dataset split ('train', 'valid', 'test').
+        - subset_index (Optional[int]): The index of the testing subset.
         """
         # Validate the data_split argument
         if data_split not in ["train", "valid", "test"]:
             raise ValueError("data_split must be one of 'train', 'valid', 'test'")
+        if data_split == "test" and subset_index is None:
+            raise ValueError("subset index must be specified for the test split")
 
-        self.data_directory = os.path.join(data_directory, data_split + "/")
+        if data_split == "test":
+            self.data_directory = os.path.join(
+                data_directory, data_split, f"subset{subset_index:02d}/"
+            )
+        else:
+            self.data_directory = os.path.join(data_directory, data_split + "/")
         self.data_indices = [
             file
             for file in os.listdir(self.data_directory)

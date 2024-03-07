@@ -18,8 +18,7 @@ def main():
     subset_index = 1
     script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_directory = os.path.join(
-        script_directory,
-        f"datasets/dataset{dataset_index:02d}/subset{subset_index:02d}/",
+        script_directory, f"datasets/dataset{dataset_index:02d}/"
     )
     grid_size = 64
     resolution = 0.5
@@ -69,6 +68,7 @@ def main():
         instance_count=10,
         params_terrain_geometry=params_terrain_geometry,
         params_terrain_coloring=params_terrain_coloring,
+        subset_index=subset_index,
     )
     generator_test.generate_dataset()
 
