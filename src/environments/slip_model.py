@@ -4,6 +4,7 @@ author: Masafumi Endo
 
 import torch
 from torch import Tensor
+from torch.distributions import Normal
 from typing import Optional, Union
 
 from src.utils.utils import set_randomness
@@ -44,29 +45,44 @@ class SlipModel:
         self.base_noise_scale = base_noise_scale
         self.slope_noise_scale = slope_noise_scale
         set_randomness(seed) if seed is not None else None
+        # Initialize the distribution
+        self.distribution = None
 
-    def observe_slip(self, phi: Union[float, Tensor]) -> Union[float, Tensor]:
+    def sample(self, sample_shape: Optional[int] = 1) -> Tensor:
         """
-        Observe slip from slope angle, ensuring the result is within the range (-1, 1).
-        This method supports both float and tensor inputs for the slope angle.
+        Sample slip values from the model distribution.
 
         Parameters:
-        - phi (Union[float, Tensor]): Slope angle, can be a single value or a tensor of values.
+        - sample_shape (Optional[int]): Number of samples to draw (default: 1).
 
         Returns:
-        - slip (Union[float, Tensor]): Slip ratio, adjusted to be within the range (-1, 1),
-                                       can be a single value or a tensor of values depending on the input.
+        - slip (Tensor): Sampled slip values.
+        """
+        if self.distribution is None:
+            raise ValueError("Model distribution is not defined.")
+        samples = self.distribution.sample(sample_shape=torch.Size([sample_shape]))
+        return torch.clamp(samples, 0, 1)
+
+    def model_distribution(self, phi: Tensor) -> Normal:
+        """
+        Define the distribution of slip from slope angle, without noise.
+        This method supports only tensor inputs for the slope angle.
+
+        Parameters:
+        - phi (Tensor): Slope angle, can be a tensor of values.
+
+        Returns:
+        - dist (Normal): Slip distribution as a normal distribution.
         """
         phi_tensor = self.ensure_tensor(phi)
-        slip = self.latent_model(phi_tensor)
-        noise_scales = self.noise_model(phi_tensor)
-        # Generate slip with noise and then clip it to be within the range (-1, 1)
-        noisy_slip = torch.clamp(slip + torch.randn_like(slip) * noise_scales, -1, 1)
-        return noisy_slip if isinstance(phi, Tensor) else noisy_slip.item()
+        mean = self.model_mean(phi_tensor)
+        stddev = self.model_stddev(phi_tensor)
+        self.distribution = Normal(mean, stddev)
+        return self.distribution
 
-    def latent_model(self, phi: Tensor) -> Tensor:
+    def model_mean(self, phi: Tensor) -> Tensor:
         """
-        Define the latent model of slip from slope angle, without noise.
+        Define the predictive mean of the latent slip model from slope angle, without noise.
         This method supports only tensor inputs for the slope angle.
 
         Parameters:
@@ -82,9 +98,9 @@ class SlipModel:
         slip = torch.where(
             phi >= 0, base_slip + self.slip_offset, -base_slip + self.slip_offset
         )
-        return torch.clamp(slip, -1, 1)
+        return torch.clamp(slip, 0, 1)
 
-    def noise_model(self, phi: Tensor) -> Tensor:
+    def model_stddev(self, phi: Tensor) -> Tensor:
         """
         Define the noise model of slip from slope angle, without noise.
         This method supports only tensor inputs for the slope angle.

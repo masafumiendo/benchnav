@@ -20,25 +20,24 @@ model = SlipModel(
 )
 
 # Create an array of slope angles (phi)
-phis = torch.linspace(-30, 30, 500).to(
-    device=DEVICE
-)  # Slope angles ranging from -30 to 30
+phis = torch.linspace(0, 30, 500).to(device=DEVICE)  # Slope angles ranging from 0 to 30
 
-# Compute the observed slip values
-observed_slips = model.observe_slip(phis).cpu().numpy()
-actual_slips = model.latent_model(phis).cpu().numpy()
+# Obtain distributions of slip values from the slope angles
+slip_dist = model.model_distribution(phis)
+
+# Retrieve the mean and standard deviation of the slip distributions
+mean_slip = slip_dist.mean.cpu().numpy()
+std_slip = slip_dist.stddev.cpu().numpy()
+observed_slips = slip_dist.sample().cpu().numpy()
 
 # Compute dynamic noise scales for the visualization
 # Assuming the model has methods or attributes to compute or retrieve the dynamic noise scale for each phi
-noise_scales = model.noise_model(phis)
-lowers = (
-    actual_slips - 2 * noise_scales.cpu().numpy()
-)  # Assuming 2 standard deviations for the bounds
-uppers = actual_slips + 2 * noise_scales.cpu().numpy()
+lowers = mean_slip - 2 * std_slip  # Assuming 2 standard deviations for the bounds
+uppers = mean_slip + 2 * std_slip
 
 # Visualize the results with dynamic noise bounds
 plt.figure(figsize=(10, 6))
-plt.plot(phis.cpu().numpy(), actual_slips, label="Actual Slip", color="blue")
+plt.plot(phis.cpu().numpy(), mean_slip, label="Actual Slip", color="blue")
 plt.fill_between(
     phis.cpu().numpy(),
     lowers,
@@ -55,14 +54,11 @@ plt.scatter(
     label="Observed Slip",
     alpha=0.6,
 )
-plt.xlim(-30, 30)
-plt.ylim(-1, 1)
+plt.xlim(0, 30)
+plt.ylim(0, 1)
 plt.xlabel("Slope Angle (phi)")
 plt.ylabel("Slip Ratio")
 plt.title("Slip Ratio vs. Slope Angle with Heteroscedastic Noise")
 plt.legend()
 plt.grid(True)
 plt.show()
-
-phi = 10.0
-observed_slip = model.observe_slip(phi)

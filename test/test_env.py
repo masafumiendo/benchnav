@@ -11,8 +11,8 @@ import torch
 import matplotlib.pyplot as plt
 
 from environments.grid_map import GridMap
-from environments.grid_map import TerrainGeometry
-from environments.grid_map import TerrainColoring
+from environments.terrain_properties import TerrainGeometry
+from environments.terrain_properties import TerrainColoring
 
 # Initialize GridMap
 grid_size = 64
