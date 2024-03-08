@@ -334,6 +334,12 @@ class TerrainGeometry:
 
 class TerrainColoring:
     def __init__(self, grid_map: GridMap) -> None:
+        """
+        Initialize terrain coloring.
+
+        Parameters:
+        - grid_map (GridMap): An instance of GridMap.
+        """
         self.grid_map = grid_map
 
     def set_terrain_class_coloring(
@@ -494,6 +500,12 @@ class TerrainColoring:
 
 class TerrainTraversability:
     def __init__(self, grid_map: GridMap) -> None:
+        """
+        Initialize terrain traversability.
+
+        Parameters:
+        - grid_map (GridMap): An instance of GridMap.
+        """
 
         self.grid_map = grid_map
         # Check tensor data for terrain information
