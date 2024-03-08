@@ -25,8 +25,8 @@ class GridMap:
         Parameters:
         - grid_size (int): Number of grids along one axis.
         - resolution (float): Resolution of each grid in meters.
-        - tensor_data (Optional[dict[torch.Tensor]]): Data structure for terrain information.
         - seed (Optional[int]): Seed for random number generation.
+        - tensor_data (Optional[dict[torch.Tensor]]): Data structure for terrain information.
         - device (Optional[str]): Device to run the model on.
         """
         self.grid_size = grid_size
