@@ -62,10 +62,8 @@ class TerrainGeometry:
         - safety_margin (float): Margin around start and goal positions to avoid placing craters.
         """
         # Initialize terrain height and slope tensors
-        heights = torch.zeros(
-            (self.grid_map.grid_size, self.grid_map.grid_size),
-            device=self.grid_map.device,
-        )
+        grid_size = self.grid_map.grid_size + 2  # Add padding for slope generation
+        heights = torch.zeros((grid_size, grid_size), device=self.grid_map.device)
 
         # Apply crater geometry if necessary
         if is_crater:
@@ -85,7 +83,7 @@ class TerrainGeometry:
                 crater_center = (
                     torch.rand(2)
                     * (
-                        (self.grid_map.grid_size - 1) * self.grid_map.resolution
+                        (grid_size - 1) * self.grid_map.resolution
                         - self.grid_map.lower_left_x
                     )
                     + self.grid_map.lower_left_x
@@ -125,7 +123,8 @@ class TerrainGeometry:
         if is_fractal:
             heights = self.generate_fractal_surface(heights)
 
-        self.grid_map.tensor_data["heights"] = heights
+        # Crop the edges to avoid nan values for slope generation
+        self.grid_map.tensor_data["heights"] = heights[1:-1, 1:-1]
         self.grid_map.tensor_data["slopes"] = self.generate_slopes(heights)
 
     def generate_crater(
@@ -178,8 +177,8 @@ class TerrainGeometry:
                 x_index = center_x_index - grid_size // 2 + i
                 y_index = center_y_index - grid_size // 2 + j
                 if (
-                    0 <= x_index < self.grid_map.grid_size
-                    and 0 <= y_index < self.grid_map.grid_size
+                    0 <= x_index < self.grid_map.grid_size + 2
+                    and 0 <= y_index < self.grid_map.grid_size + 2
                 ):
                     heights[y_index, x_index] += crater_profile[
                         j, i
@@ -226,16 +225,16 @@ class TerrainGeometry:
         - (torch.Tensor): Generated fractal surface heights.
         """
         device = self.grid_map.device
-        size = self.grid_map.grid_size
+        grid_size = self.grid_map.grid_size + 2  # Add padding for slope generation
         roughness_exponent = self.roughness_exponent
         amplitude_gain = self.amplitude_gain
         resolution = self.grid_map.resolution
 
-        grid = torch.zeros((size, size), dtype=torch.complex64, device=device)
+        grid = torch.zeros((grid_size, grid_size), dtype=torch.complex64, device=device)
 
         # Generate the upper left quadrant and its symmetric counterparts
-        for y in range(size // 2 + 1):
-            for x in range(size // 2 + 1):
+        for y in range(grid_size // 2 + 1):
+            for x in range(grid_size // 2 + 1):
                 phase = 2 * torch.pi * torch.rand(1, device=device)
                 if x != 0 or y != 0:  # Avoid division by zero at the origin
                     rad = torch.pow(
@@ -253,23 +252,27 @@ class TerrainGeometry:
                     grid[-y, -x] = grid[y, x].conj()
 
         # Handle the edges for real parts
-        edge_and_corners = [(size // 2, 0), (0, size // 2), (size // 2, size // 2)]
+        edge_and_corners = [
+            (grid_size // 2, 0),
+            (0, grid_size // 2),
+            (grid_size // 2, grid_size // 2),
+        ]
         for y, x in edge_and_corners:
             grid[y, x] = grid[y, x].real + 0j  # Ensuring the value remains complex
 
         # Adjust for the second half of the grid
-        for y in range(1, size // 2):
-            for x in range(1, size // 2):
+        for y in range(1, grid_size // 2):
+            for x in range(1, grid_size // 2):
                 phase = 2 * torch.pi * torch.rand(1, device=device)
                 rad = torch.pow(
                     torch.tensor([x ** 2 + y ** 2], dtype=torch.float32, device=device),
                     -((roughness_exponent + 1) / 2),
                 )
-                grid[y, size - x] = rad * torch.exp(1j * phase)
-                grid[size - y, x] = grid[y, size - x].conj()
+                grid[y, grid_size - x] = rad * torch.exp(1j * phase)
+                grid[grid_size - y, x] = grid[y, grid_size - x].conj()
 
         # Scale and perform the inverse FFT
-        grid *= abs(amplitude_gain) * (size * resolution * 1e3) ** (
+        grid *= abs(amplitude_gain) * (grid_size * resolution * 1e3) ** (
             roughness_exponent + 1 + 0.5
         )
         surface = torch.fft.ifft2(grid).real / (resolution * 1e3) ** 2
@@ -324,11 +327,8 @@ class TerrainGeometry:
         slopes = torch.atan(torch.sqrt(gradient_x.pow(2) + gradient_y.pow(2)))
         slopes = torch.rad2deg(slopes).squeeze()
 
-        # Assign inf to edges
-        slopes[0, :] = torch.inf
-        slopes[-1, :] = torch.inf
-        slopes[:, 0] = torch.inf
-        slopes[:, -1] = torch.inf
+        # Crop the edges to avoid inf values
+        slopes = slopes[1:-1, 1:-1]
         return slopes
 
 

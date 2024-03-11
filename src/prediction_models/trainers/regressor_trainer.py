@@ -121,12 +121,12 @@ class RegressorTrainer:
             terrain_class
         )
         slip_model = SlipModel(
-            device=self.device,
             slip_sensitivity=slip_sensitivity,
             slip_nonlinearity=slip_nonlinearity,
             slip_offset=slip_offset,
             base_noise_scale=noise_scale,
             seed=terrain_class,
+            device=self.device,
         )
         phis = torch.linspace(-45, 45, 2500).to(self.device)
         observed_slips = slip_model.observe_slip(phis)
