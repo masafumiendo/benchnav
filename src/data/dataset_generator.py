@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tqdm import tqdm
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 import torch
 import torch.multiprocessing as multiprocessing
 
@@ -25,7 +25,7 @@ from src.utils.utils import set_randomness
 class DatasetGenerator:
     def __init__(
         self,
-        slip_models: list[SlipModel],
+        slip_models: Dict[int, SlipModel],
         data_directory: str,
         data_split: int,
         grid_size: int,
@@ -43,7 +43,7 @@ class DatasetGenerator:
         Initializes the DatasetGenerator with the specified parameters.
 
         Parameters:
-        - slip_models (list[SlipModel]): The slip models for each terrain class.
+        - slip_models (Dict[int, SlipModel]): The slip models for the terrain classes.
         - data_directory (str): The directory to save the dataset.
         - data_split (int): The dataset split ('train', 'valid', 'test').
         - grid_size (int): The size of the grid map.
@@ -100,7 +100,6 @@ class DatasetGenerator:
         """
         # Set seed for reproducibility
         environment_seed, base_instance_seed = self.set_seed()
-
         occupancies = self.generate_occupancy_distribution(seed=environment_seed)
 
         # Generate and save environment groups
@@ -114,13 +113,14 @@ class DatasetGenerator:
                 instance_seed = (
                     base_instance_seed + environment_index * self.instance_count
                 )
-                # Update occupancy for each environment group
-                self.params_terrain_coloring.occupancy = occupancies[
-                    environment_index, :
-                ]
+                # Generate and save environment group
                 pool.apply_async(
                     self.generate_and_save_environment_group,
-                    args=(environment_index, instance_seed),
+                    args=(
+                        environment_index,
+                        instance_seed,
+                        occupancies[environment_index, :],
+                    ),
                     callback=lambda _: pbar.update(1),
                 )
             # Close pool and wait for all processes to finish
@@ -215,7 +215,8 @@ class DatasetGenerator:
                 1 / self.num_selected_terrain_classes
             )
 
-        self.balance_occupancy_distribution(occupancies)
+        # Balance occupancy distribution
+        occupancies = self.balance_occupancy_distribution(occupancies)
         return occupancies
 
     def balance_occupancy_distribution(self, occupancies: torch.Tensor) -> None:
@@ -262,8 +263,10 @@ class DatasetGenerator:
                         current_selections[under] += 1
                         break
 
+        return occupancies
+
     def generate_and_save_environment_group(
-        self, environment_index: int, instance_seed: int
+        self, environment_index: int, instance_seed: int, occupancy: torch.Tensor
     ) -> None:
         """
         Generates and saves a group of environment instances with the specified parameters.
@@ -271,11 +274,14 @@ class DatasetGenerator:
         Parameters:
         - environment_index (int): The index of the environment.
         - instance_seed (int): The seed for generating the map instance.
+        - occupancy (torch.Tensor): The terrain class occupancy distribution.
         """
         # Generate and save environment instances
         for instance_index in range(self.instance_count):
             # Generate map instance
-            grid_map = self.generate_map_instance(seed=instance_seed)
+            grid_map = self.generate_map_instance(
+                seed=instance_seed, occupancy=occupancy
+            )
 
             # Save map instance
             if self.data_split == "test":
@@ -300,12 +306,13 @@ class DatasetGenerator:
             # Update instance seed
             instance_seed += 1
 
-    def generate_map_instance(self, seed: int) -> GridMap:
+    def generate_map_instance(self, seed: int, occupancy: torch.Tensor) -> GridMap:
         """
         Generates a map instance with the specified geometry and coloring parameters.
 
         Parameters:
         - seed (int): The random seed for generating the map instance.
+        - occupancy (torch.Tensor): The terrain class occupancy distribution.
 
         Returns:
         - GridMap: The generated map instance.
@@ -337,7 +344,7 @@ class DatasetGenerator:
         params_terrain_coloring = self.params_terrain_coloring
         terrain_coloring = TerrainColoring(grid_map)
         terrain_coloring.set_terrain_class_coloring(
-            params_terrain_coloring.occupancy,
+            occupancy,
             params_terrain_coloring.lower_threshold,
             params_terrain_coloring.upper_threshold,
             params_terrain_coloring.ambient_intensity,
