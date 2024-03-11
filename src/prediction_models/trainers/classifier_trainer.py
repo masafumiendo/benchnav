@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn import Module
 
 from src.prediction_models.trainers.utils import ParamsModelTraining
-from src.data.terrain_dataset import TerrainDataset
+from src.data.terrain_dataset import TerrainClassificationDataset as Dataset
 
 
 class ClassifierTrainer:
@@ -25,8 +25,8 @@ class ClassifierTrainer:
         model: Module,
         model_directory: str,
         params_model_training: ParamsModelTraining,
-        train_dataset: TerrainDataset,
-        valid_dataset: Optional[TerrainDataset] = None,
+        train_dataset: Dataset,
+        valid_dataset: Optional[Dataset] = None,
     ) -> None:
         """
         Initialize ClassifierTrainer class.
@@ -35,7 +35,7 @@ class ClassifierTrainer:
         - model (Module): Model to be trained.
         - model_directory (str): Directory to save model checkpoints and logs.
         - params_model_training (ParamsModelTraining): Parameters for model training.
-        - train_dataset (TerrainDataset): Training dataset.
+        - train_dataset (Dataset): Training dataset.
         - valid_dataset (Optional[TerrainDataset]): Validation dataset.
         """
         self.model = model

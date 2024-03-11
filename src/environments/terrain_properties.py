@@ -407,13 +407,20 @@ class TerrainColoring:
 
         # Convert occupancy ratios into cumulative percentages for thresholding
         thresholds = torch.cumsum(occupancy, dim=0) * 100
-        t_classes = torch.zeros_like(noise_data, dtype=torch.long)
+        t_classes = torch.full_like(noise_data, fill_value=-1, dtype=torch.long)
 
-        # Assign classes based on thresholds
-        for i, threshold in enumerate(thresholds):
-            # Ensure we don't go beyond the last class
-            if i < len(thresholds) - 1:  # Ensure we don't go beyond the last class
-                t_classes[noise_data > threshold] = i + 1
+        # Assign classes based on thresholds and noise data values (0-100)
+        start_index = (occupancy > 0).nonzero().min().item()
+        for i, threshold in enumerate(thresholds[start_index:], start=start_index):
+            if i == start_index:
+                mask = noise_data <= threshold
+            else:
+                mask = (noise_data > thresholds[i - 1]) & (noise_data <= threshold)
+            t_classes[mask] = i
+
+        # If -1 exists, raise a warning
+        if (t_classes == -1).any():
+            warnings.warn("Some grid cells have not been assigned a terrain class.")
 
         return t_classes
 

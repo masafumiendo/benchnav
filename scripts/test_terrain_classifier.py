@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from src.prediction_models.terrain_classifiers.unet import Unet
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.prediction_models.trainers.utils import load_model_state_dict
-from src.data.terrain_dataset import TerrainDataset
+from src.data.terrain_dataset import TerrainClassificationDataset as Dataset
 
 
 def main(device: str) -> None:
@@ -59,7 +59,7 @@ def main(device: str) -> None:
     model = load_model_state_dict(model, model_directory, device)
 
     # Load the test dataset
-    test_dataset = TerrainDataset(data_directory, "test", subset_index)
+    test_dataset = Dataset(data_directory, "test", subset_index)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     # Test the model

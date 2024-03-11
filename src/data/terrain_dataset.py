@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class TerrainDataset(Dataset):
+class BaseDataset(Dataset):
     """
     A dataset class for loading terrain data for machine learning models.
     Supports loading color maps and mask maps as well as converting them into a format suitable for model training or evaluation.
@@ -16,7 +16,7 @@ class TerrainDataset(Dataset):
 
     def __init__(
         self, data_directory: str, data_split: str, subset_index: Optional[int] = None
-    ):
+    ) -> None:
         """
         Initializes the TerrainDataset with the specified directory, and data split.
 
@@ -50,6 +50,21 @@ class TerrainDataset(Dataset):
         """Returns the number of items in the dataset."""
         return len(self.file_paths)
 
+
+class TerrainClassificationDataset(BaseDataset):
+    """
+    A dataset class for loading terrain data for classification models.
+    Supports loading color maps and mask maps as well as converting them into a format suitable for model training or evaluation.
+    """
+
+    def __init__(
+        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+    ) -> None:
+        super().__init__(data_directory, data_split, subset_index)
+
+    def __len__(self) -> int:
+        return super().__len__()
+
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Retrieves the color map and mask map for the specified index.
@@ -64,3 +79,35 @@ class TerrainDataset(Dataset):
         colors = data_item["colors"]
         t_classes = data_item["t_classes"]
         return colors, t_classes
+
+
+class SlipRegressionDataset(BaseDataset):
+    """
+    A dataset class for loading terrain data for slip regression models.
+    """
+
+    def __init__(
+        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+    ) -> None:
+        super().__init__(data_directory, data_split, subset_index)
+
+    def __len__(self) -> int:
+        return super().__len__()
+
+    def __getitem__(
+        self, index: int
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Retrieves the slope map, the slip map, and the terrain class for the specified index.
+
+        Parameters:
+        - index (int): The index of the data item.
+
+        Returns:
+        - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: containing the slope map, the slip map, and the terrain class.
+        """
+        data_item = torch.load(self.file_paths[index])
+        slopes = data_item["slopes"]
+        slips = data_item["slips"].sample()
+        t_classes = data_item["t_classes"]
+        return slopes, slips, t_classes

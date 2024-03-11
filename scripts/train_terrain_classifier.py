@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.prediction_models.trainers.classifier_trainer import ClassifierTrainer
 from src.prediction_models.terrain_classifiers.unet import Unet
 from src.prediction_models.trainers.utils import ParamsModelTraining
-from src.data.terrain_dataset import TerrainDataset
+from src.data.terrain_dataset import TerrainClassificationDataset as Dataset
 
 
 def main(device: str) -> None:
@@ -45,8 +45,8 @@ def main(device: str) -> None:
     )
 
     # Load the training and validation datasets
-    train_dataset = TerrainDataset(data_directory, "train")
-    valid_dataset = TerrainDataset(data_directory, "valid")
+    train_dataset = Dataset(data_directory, "train")
+    valid_dataset = Dataset(data_directory, "valid")
 
     # Initialize the classifier trainer
     trainer = ClassifierTrainer(
@@ -62,4 +62,4 @@ def main(device: str) -> None:
 
 
 if __name__ == "__main__":
-    main("cuda:1")
+    main("cuda:0")
