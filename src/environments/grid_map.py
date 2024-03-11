@@ -38,7 +38,7 @@ class GridMap:
         set_randomness(seed) if seed is not None else None
         # Initialize data structure for terrain information
         self.tensor_data = (
-            self.load_tensor_data(tensor_data)
+            tensor_data
             if tensor_data is not None
             else self.initialize_tensor_data(grid_size)
         )
@@ -78,25 +78,6 @@ class GridMap:
                 torch.zeros((grid_size, grid_size)), torch.ones((grid_size, grid_size))
             ),
         }
-
-    @staticmethod
-    def load_tensor_data(tensor_data: dict) -> dict:
-        """
-        Load the data structure for terrain information.
-
-        Parameters:
-        - tensor_data (dict): Data structure for terrain information.
-
-        Returns:
-        - Loaded data structure.
-        """
-        # Reconstruct the Normal distribution
-        tensor_data["slips"] = Normal(
-            tensor_data["slips_mean"], tensor_data["slips_std"]
-        )
-        tensor_data.pop("slips_mean")
-        tensor_data.pop("slips_std")
-        return tensor_data
 
     def get_value_from_grid_id(
         self, x_index: int, y_index: int, attribute: str = "heights"

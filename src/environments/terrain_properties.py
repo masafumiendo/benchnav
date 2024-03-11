@@ -523,13 +523,12 @@ class TerrainTraversability:
         Parameters:
         - slip_models (list[SlipModel]): Slip models for different terrain classes.
         """
-        # Prepare one-hot encoding for terrain classes
         t_classes = self.grid_map.tensor_data["t_classes"]
-        num_classes = t_classes.unique().numel()
 
-        if num_classes != len(slip_models):
+        # Check if the number of terrain classes exceeds the number of slip models
+        if t_classes.unique().min() < 0 or t_classes.unique().max() >= len(slip_models):
             raise ValueError(
-                "Number of slip models must match the number of terrain classes."
+                "The number of terrain classes exceeds the number of slip models."
             )
 
         slips_mean = torch.full(
@@ -545,11 +544,10 @@ class TerrainTraversability:
 
         slopes = self.grid_map.tensor_data["slopes"]
         for i, slip_model in enumerate(slip_models):
-            mask = (t_classes == i) & (~torch.isinf(slopes))
-            if mask.any():
-                valid_slopes = slopes[mask]
-                distribution = slip_model.model_distribution(valid_slopes)
-                slips_mean[mask] = distribution.mean
-                slips_stddev[mask] = distribution.stddev
+            mask = t_classes == i
+            masked_slopes = slopes[mask]
+            distribution = slip_model.model_distribution(masked_slopes)
+            slips_mean[mask] = distribution.mean
+            slips_stddev[mask] = distribution.stddev
 
         self.grid_map.tensor_data["slips"] = Normal(slips_mean, slips_stddev)

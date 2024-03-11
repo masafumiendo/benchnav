@@ -10,11 +10,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tqdm import tqdm
 from typing import Tuple, Optional
 import torch
-import multiprocessing
+import torch.multiprocessing as multiprocessing
 
 from environments.grid_map import GridMap
-from environments.grid_map import TerrainGeometry
-from environments.grid_map import TerrainColoring
+from environments.slip_model import SlipModel
+from environments.terrain_properties import TerrainGeometry
+from environments.terrain_properties import TerrainColoring
+from environments.terrain_properties import TerrainTraversability
 from src.data.utils import ParamsTerrainGeometry
 from src.data.utils import ParamsTerrainColoring
 from src.utils.utils import set_randomness
@@ -23,6 +25,7 @@ from src.utils.utils import set_randomness
 class DatasetGenerator:
     def __init__(
         self,
+        slip_models: list[SlipModel],
         data_directory: str,
         data_split: int,
         grid_size: int,
@@ -34,11 +37,13 @@ class DatasetGenerator:
         params_terrain_geometry: ParamsTerrainGeometry = None,
         params_terrain_coloring: ParamsTerrainColoring = None,
         subset_index: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
         """
         Initializes the DatasetGenerator with the specified parameters.
 
         Parameters:
+        - slip_models (list[SlipModel]): The slip models for each terrain class.
         - data_directory (str): The directory to save the dataset.
         - data_split (int): The dataset split ('train', 'valid', 'test').
         - grid_size (int): The size of the grid map.
@@ -50,7 +55,9 @@ class DatasetGenerator:
         - params_terrain_geometry (ParamsTerrainGeometry): The parameters for the terrain geometry.
         - params_terrain_coloring (ParamsTerrainColoring): The parameters for the terrain coloring.
         - subset_index (Optional[int]): The index of the subset for the test split.
+        - device (Optional[str]): The device to use for generating the dataset.
         """
+        self.slip_models = slip_models
         # Validate the data_split argument
         if data_split not in ["train", "valid", "test"]:
             raise ValueError("data_split must be one of 'train', 'valid', 'test'")
@@ -58,6 +65,8 @@ class DatasetGenerator:
             raise ValueError("subset_index must be specified for generating test data.")
         self.data_directory = data_directory
         self.data_split = data_split
+
+        # Set subset_index for test split
         self.subset_index = (
             subset_index if data_split == "test" else None
         )  # make sure subset_index is None for train and valid
@@ -72,6 +81,15 @@ class DatasetGenerator:
 
         self.params_terrain_geometry = params_terrain_geometry
         self.params_terrain_coloring = params_terrain_coloring
+
+        # Set device
+        self.device = (
+            device
+            if device is not None
+            else "cuda"
+            if torch.cuda.is_available()
+            else "cpu"
+        )
 
     def generate_dataset(self, processes: int = 4) -> None:
         """
@@ -295,7 +313,10 @@ class DatasetGenerator:
 
         # Initialize GridMap
         grid_map = GridMap(
-            grid_size=self.grid_size, resolution=self.resolution, seed=seed
+            grid_size=self.grid_size,
+            resolution=self.resolution,
+            seed=seed,
+            device=self.device,
         )
 
         # Set Terrain Geometry
@@ -321,5 +342,9 @@ class DatasetGenerator:
             params_terrain_coloring.upper_threshold,
             params_terrain_coloring.ambient_intensity,
         )
+
+        # Set Terrain Traversability
+        terrain_traversability = TerrainTraversability(grid_map)
+        terrain_traversability.set_traversability(self.slip_models)
 
         return grid_map
