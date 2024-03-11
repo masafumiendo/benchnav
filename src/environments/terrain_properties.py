@@ -3,7 +3,7 @@ author: Masafumi Endo
 """
 
 import warnings
-from typing import Optional
+from typing import Optional, Dict
 import torch
 from torch.distributions import Normal
 import torch.nn.functional as F
@@ -516,12 +516,12 @@ class TerrainTraversability:
                 "Terrain class data is required for setting traversability."
             )
 
-    def set_traversability(self, slip_models: list[SlipModel]) -> None:
+    def set_traversability(self, slip_models: Dict[int, SlipModel]) -> None:
         """
         Sets the traversability of the terrain based on the slip models provided.
 
         Parameters:
-        - slip_models (list[SlipModel]): Slip models for different terrain classes.
+        - slip_models (Dict[int, SlipModel]): Slip models for each terrain class.
         """
         t_classes = self.grid_map.tensor_data["t_classes"]
 
@@ -543,11 +543,12 @@ class TerrainTraversability:
         )
 
         slopes = self.grid_map.tensor_data["slopes"]
-        for i, slip_model in enumerate(slip_models):
-            mask = t_classes == i
-            masked_slopes = slopes[mask]
-            distribution = slip_model.model_distribution(masked_slopes)
-            slips_mean[mask] = distribution.mean
-            slips_stddev[mask] = distribution.stddev
+        for t_class, slip_model in slip_models.items():
+            mask = t_classes == t_class
+            if mask.any():  # Check if there are any elements in this class
+                masked_slopes = slopes[mask]
+                distribution = slip_model.model_distribution(masked_slopes)
+                slips_mean[mask] = distribution.mean
+                slips_stddev[mask] = distribution.stddev
 
         self.grid_map.tensor_data["slips"] = Normal(slips_mean, slips_stddev)
