@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.prediction_models.trainers.regressor_trainer import RegressorTrainer
 from src.prediction_models.trainers.utils import ParamsModelTraining
+from src.data.terrain_dataset import SlipRegressionDataset as Dataset
 
 
 def main(device: str) -> None:
@@ -19,20 +20,24 @@ def main(device: str) -> None:
     - device (str): Device for training, either "cpu" or "cuda".
     """
 
-    # Set the model directory
+    # Set the data directory
     dataset_index = 1
     script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_directory = os.path.join(
-        script_directory, f"trained_models/dataset{dataset_index:02d}/GPR/"
-    )
     data_directory = os.path.join(
         script_directory, f"datasets/dataset{dataset_index:02d}/"
+    )
+    # Set the model directory
+    model_directory = os.path.join(
+        script_directory, f"trained_models/dataset{dataset_index:02d}/GPR/"
     )
 
     # Set the parameters for model training
     params_model_training = ParamsModelTraining(
-        learning_rate=1e-1, num_iterations=100, device=device
+        batch_size=16, learning_rate=1e-1, num_iterations=100, device=device
     )
+
+    # Load the training dataset
+    train_dataset = Dataset(data_directory, "train")
 
     # Initialize the regressor trainer
     trainer = RegressorTrainer(
@@ -40,11 +45,8 @@ def main(device: str) -> None:
         model_directory=model_directory,
         data_directory=data_directory,
         num_terrain_classes=10,
-        slip_sensitivity_minmax=(1.0, 9.0),
-        slip_nonlinearity_minmax=(1.4, 2.0),
-        slip_offset_minmax=(0.0, 0.1),
-        noise_scale_minmax=(0.1, 0.2),
         params_model_training=params_model_training,
+        train_dataset=train_dataset,
     )
 
     # Train the slip regressors

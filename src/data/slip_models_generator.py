@@ -8,7 +8,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
-from typing import Tuple, Union, Optional
+from typing import Tuple, Union, Optional, Dict
+from collections import defaultdict
 
 from src.environments.slip_model import SlipModel
 from src.utils.utils import set_randomness
@@ -65,28 +66,27 @@ class SlipModelsGenerator:
         if minmax[0] >= minmax[1]:
             raise ValueError("The minimum value must be less than the maximum value.")
 
-    def generate_slip_models(self) -> list[SlipModel]:
+    def generate_slip_models(self) -> Dict[int, SlipModel]:
         """
         Generates slip models for each terrain class.
 
         Returns:
-        - slip_models (list[SlipModel]): The list of slip models for each terrain class.
+        - slip_models (Dict[int, SlipModel]): the slip models for each terrain class.
         """
-        slip_models = []
+        slip_models = defaultdict(SlipModel)
         for terrain_class in range(self.num_total_terrain_classes):
             slip_sensitivity, slip_nonlinearity, slip_offset, noise_scale = self.set_slip_model_parameters(
                 terrain_class
             )
-            slip_models.append(
-                SlipModel(
-                    slip_sensitivity=slip_sensitivity,
-                    slip_nonlinearity=slip_nonlinearity,
-                    slip_offset=slip_offset,
-                    base_noise_scale=noise_scale,
-                    seed=terrain_class,
-                    device=self.device,
-                )
+            slip_models[terrain_class] = SlipModel(
+                slip_sensitivity=slip_sensitivity,
+                slip_nonlinearity=slip_nonlinearity,
+                slip_offset=slip_offset,
+                base_noise_scale=noise_scale,
+                seed=terrain_class,
+                device=self.device,
             )
+
         return slip_models
 
     def set_slip_model_parameters(
