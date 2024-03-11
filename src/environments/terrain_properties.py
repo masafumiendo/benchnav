@@ -405,12 +405,11 @@ class TerrainColoring:
             * 100
         )
 
-        # Convert occupancy ratios into cumulative percentages for thresholding
+        # Generate thresholds for terrain classes
         thresholds = torch.cumsum(occupancy, dim=0) * 100
-        t_classes = torch.full_like(noise_data, fill_value=-1, dtype=torch.long)
-
         # Assign classes based on thresholds and noise data values (0-100)
-        start_index = (occupancy > 0).nonzero().min().item()
+        t_classes = torch.full_like(noise_data, fill_value=-1, dtype=torch.long)
+        start_index = (occupancy > 0).nonzero().min().item()  # Start index for classes
         for i, threshold in enumerate(thresholds[start_index:], start=start_index):
             if i == start_index:
                 mask = noise_data <= threshold
