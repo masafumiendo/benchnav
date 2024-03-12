@@ -539,12 +539,12 @@ class TerrainTraversability:
 
         slips_mean = torch.full(
             (self.grid_map.grid_size, self.grid_map.grid_size),
-            float("inf"),
+            torch.inf,
             device=self.grid_map.device,
         )
         slips_stddev = torch.full(
             (self.grid_map.grid_size, self.grid_map.grid_size),
-            float("inf"),
+            torch.inf,
             device=self.grid_map.device,
         )
 
