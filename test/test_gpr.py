@@ -18,12 +18,15 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the SlipModel
 slip_model = SlipModel(
-    device=DEVICE, slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1
+    slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1, device=DEVICE
 )
 
 # Generate synthetic data
-phis = torch.linspace(-30, 30, 1000).to(device=DEVICE)
-observed_slips = slip_model.observe_slip(phis)
+phis = torch.linspace(0, 30, 1000).to(device=DEVICE)
+slip_dist = slip_model.model_distribution(phis)
+
+# Sample observed slips
+observed_slips = slip_dist.sample()
 
 # Instantiate the GPModel
 likelihood = gpytorch.likelihoods.GaussianLikelihood().to(device=DEVICE)
@@ -53,11 +56,13 @@ for i in range(training_iterations):
     optimizer.step()
 
 # Generate test data
-test_phis = torch.linspace(-30, 30, 100).to(device=DEVICE)
-test_slips = slip_model.observe_slip(test_phis)
+test_phis = torch.linspace(0, 30, 100).to(device=DEVICE)
+test_slips = slip_model.model_distribution(test_phis).sample()
 
 # Make predictions
-mean, lower, upper = model.predict(test_phis)
+pred_dist = model.predict(test_phis)
+mean = pred_dist.mean
+lower, upper = pred_dist.confidence_region()
 
 # Plot the results
 plt.figure(figsize=(12, 6))
@@ -70,8 +75,8 @@ plt.fill_between(
     alpha=0.5,
     color="blue",
 )
-plt.xlim(-30, 30)
-plt.ylim(-1, 1)
+plt.xlim(0, 30)
+plt.ylim(0, 1)
 plt.xlabel("Slope Angle (degrees)")
 plt.ylabel("Slip Ratio")
 plt.legend()

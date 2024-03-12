@@ -38,7 +38,9 @@ class GridMap:
         set_randomness(seed) if seed is not None else None
         # Initialize data structure for terrain information
         self.tensor_data = (
-            tensor_data if tensor_data is not None else self.initialize_data(grid_size)
+            tensor_data
+            if tensor_data is not None
+            else self.initialize_tensor_data(grid_size)
         )
         self.device = (
             device
@@ -49,9 +51,9 @@ class GridMap:
         )
 
     @staticmethod
-    def initialize_data(grid_size: int) -> dict:
+    def initialize_tensor_data(grid_size: int) -> dict:
         """
-        Initialize data structure for terrain information with zero-filled numpy arrays
+        Initialize data structure for terrain information with zero-filled torch tensors
         for a square grid.
 
         Attributes:

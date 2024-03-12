@@ -5,8 +5,6 @@ author: Masafumi Endo
 import torch
 import gpytorch
 
-from typing import Tuple
-
 
 class GPModel(gpytorch.models.ExactGP):
     """
@@ -54,9 +52,7 @@ class GPModel(gpytorch.models.ExactGP):
         # Return the distribution of predicted values.
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-    def predict(
-        self, x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def predict(self, x: torch.Tensor) -> gpytorch.distributions.MultivariateNormal:
         """
         Generates predictions for the given input data.
 
@@ -64,7 +60,7 @@ class GPModel(gpytorch.models.ExactGP):
         - x (Tensor): The input data for which predictions are to be generated.
 
         Returns:
-        - Tuple[Tensor, Tensor, Tensor]: The mean, lower bound, and upper bound of the predictive distribution.
+        - MultivariateNormal: The predictive distribution of the model.
         """
         # Set the model to evaluation mode
         self.eval()
@@ -72,7 +68,5 @@ class GPModel(gpytorch.models.ExactGP):
         self.likelihood.eval()
         # Generate predictions
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            observed_pred = self.likelihood(self(x))
-            mean = observed_pred.mean
-            lower, upper = observed_pred.confidence_region()
-        return mean, lower, upper
+            pred_dist = self.likelihood(self(x))
+        return pred_dist

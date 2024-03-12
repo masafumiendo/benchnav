@@ -16,7 +16,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the SlipModel
 model = SlipModel(
-    device=DEVICE, slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1
+    slip_sensitivity=1.0, slip_nonlinearity=2.0, slip_offset=0.1, device=DEVICE
 )
 
 # Create an array of slope angles (phi)

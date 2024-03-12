@@ -13,25 +13,31 @@ from src.utils.utils import set_randomness
 class SlipModel:
     def __init__(
         self,
-        device: Optional[str],
         slip_sensitivity: float,
         slip_nonlinearity: float,
         slip_offset: float,
         base_noise_scale: float = 0.05,
         slope_noise_scale: float = 0.00,
         seed: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
         """
         Initialize SlipModel class.
 
         Parameters:
-        - device (Optional[str]): Device to run the model on.
         - slip_sensitivity (float): Sensitivity of slip to slope.
         - slip_nonlinearity (float): Nonlinearity of slip to slope.
         - slip_offset (float): Offset of slip.
         - noise_scale (float): Scale of noise.
         - seed (Optional[int]): Random seed for reproducibility.
+        - device (Optional[str]): Device to run the model on.
         """
+        self.slip_sensitivity = slip_sensitivity
+        self.slip_nonlinearity = slip_nonlinearity
+        self.slip_offset = slip_offset
+        self.base_noise_scale = base_noise_scale
+        self.slope_noise_scale = slope_noise_scale
+        set_randomness(seed) if seed is not None else None
         self.device = (
             device
             if device is not None
@@ -39,12 +45,6 @@ class SlipModel:
             if torch.cuda.is_available()
             else "cpu"
         )
-        self.slip_sensitivity = slip_sensitivity
-        self.slip_nonlinearity = slip_nonlinearity
-        self.slip_offset = slip_offset
-        self.base_noise_scale = base_noise_scale
-        self.slope_noise_scale = slope_noise_scale
-        set_randomness(seed) if seed is not None else None
         # Initialize the distribution
         self.distribution = None
 
