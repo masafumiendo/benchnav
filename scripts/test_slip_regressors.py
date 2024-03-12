@@ -49,8 +49,6 @@ def main(device: str) -> None:
         script_directory, f"datasets/dataset{dataset_index:02d}/slip_models/"
     )
 
-    likelihood = GaussianLikelihood().to(device=device)
-
     # Set the test inputs
     test_phis = torch.linspace(0, 30, 100).to(device=device)
 
@@ -86,6 +84,7 @@ def main(device: str) -> None:
         train_x = train_data["train_x"].to(device=device)
         train_y = train_data["train_y"].to(device=device)
         # Initialize the GP model
+        likelihood = GaussianLikelihood().to(device=device)
         model = GPModel(train_x, train_y, likelihood).to(device)
 
         # Load the trained model
