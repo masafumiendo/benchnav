@@ -5,8 +5,6 @@ author: Masafumi Endo
 import torch
 import gpytorch
 
-from typing import Tuple
-
 
 class GPModel(gpytorch.models.ExactGP):
     """
