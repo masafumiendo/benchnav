@@ -1,5 +1,5 @@
 """
-author: Masafumi Endo
+Masafumi Endo, 2024
 """
 
 import os
