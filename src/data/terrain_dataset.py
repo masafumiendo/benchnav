@@ -76,14 +76,13 @@ class TerrainClassificationDataset(BaseDataset):
         - Tuple[torch.Tensor, torch.Tensor]: containing the color map and the mask map.
         """
         data_item = torch.load(self.file_paths[index])
-        colors = data_item["colors"]
-        t_classes = data_item["t_classes"]
-        return colors, t_classes
+        return (data_item["colors"], data_item["t_classes"])
 
 
 class SlipRegressionDataset(BaseDataset):
     """
     A dataset class for loading terrain data for slip regression models.
+    Supports loading slope maps, slip maps, and terrain classes as well as converting them into a format suitable for model training or evaluation.
     """
 
     def __init__(
@@ -107,7 +106,43 @@ class SlipRegressionDataset(BaseDataset):
         - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: containing the slope map, the slip map, and the terrain class.
         """
         data_item = torch.load(self.file_paths[index])
-        slopes = data_item["slopes"]
-        slips = data_item["slips"].sample()
-        t_classes = data_item["t_classes"]
-        return slopes, slips, t_classes
+        return (
+            data_item["slopes"],
+            data_item["slips"].sample(),  # sample the slip map from the distribution
+            data_item["t_classes"],
+        )
+
+
+class TraversabilityPredictionDataset(BaseDataset):
+    """
+    A dataset class for loading terrain data for traversability prediction models.
+    Supports loading color maps, slope maps, and traversability labels as well as converting them into a format suitable for model training or evaluation.
+    """
+
+    def __init__(
+        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+    ) -> None:
+        super().__init__(data_directory, data_split, subset_index)
+
+    def __len__(self) -> int:
+        return super().__len__()
+
+    def __getitem__(
+        self, index: int
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Retrieves the color map, the slope map, and the traversability label for the specified index.
+
+        Parameters:
+        - index (int): The index of the data item.
+
+        Returns:
+        - Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]: containing the color map, the slope map, the mean and standard deviation of the slip map.
+        """
+        data_item = torch.load(self.file_paths[index])
+        return (
+            data_item["colors"],
+            data_item["slopes"],
+            data_item["slips"].mean,
+            data_item["slips"].stddev,
+        )
