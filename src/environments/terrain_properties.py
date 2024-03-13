@@ -84,9 +84,9 @@ class TerrainGeometry:
                     torch.rand(2)
                     * (
                         (grid_size - 1) * self.grid_map.resolution
-                        - self.grid_map.lower_left_x
+                        - self.grid_map.x_limits[0]
                     )
-                    + self.grid_map.lower_left_x
+                    + self.grid_map.x_limits[0]
                 )
                 crater_radius = (
                     torch.rand(1) * (max_radius - min_radius) + min_radius
