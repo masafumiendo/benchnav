@@ -301,7 +301,10 @@ class DatasetGenerator:
                 )
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-            torch.save(grid_map.tensor_data, file_path)
+            torch.save(
+                {"tensors": grid_map.tensors, "distributions": grid_map.distributions},
+                file_path,
+            )
 
             # Update instance seed
             instance_seed += 1

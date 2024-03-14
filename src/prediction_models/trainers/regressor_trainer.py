@@ -75,10 +75,9 @@ class RegressorTrainer:
         # Create the data directory if it does not exist
         if not os.path.exists(data_directory):
             os.makedirs(data_directory)
-        self.data_directory = os.path.join(data_directory, "slip_models")
+        self.data_directory = os.path.join(data_directory, "slip_observations")
         if not os.path.exists(self.data_directory):
-            os.makedirs(os.path.join(self.data_directory, "models"))
-            os.makedirs(os.path.join(self.data_directory, "observations"))
+            os.makedirs(os.path.join(self.data_directory))
 
     def train_all_models(self) -> None:
         """
@@ -91,7 +90,7 @@ class RegressorTrainer:
             )
 
     def load_data(
-        self, num_samples: int = 10000
+        self, num_samples: int = 9999
     ) -> Tuple[Dict[int, torch.Tensor], Dict[int, torch.Tensor]]:
         """
         Load the training data for the given terrain class.
@@ -120,10 +119,6 @@ class RegressorTrainer:
                     slips_dict[t_class].append(slips_class)
 
                     data_count_per_class[t_class] += phis_class.shape[0]
-
-        # Report the data distribution
-        for t_class in range(self.num_terrain_classes):
-            print(f"Class {t_class}: {data_count_per_class[t_class]} data points")
 
         # Concatenate lists into tensors and limit to num_samples
         for t_class in range(self.num_terrain_classes):
@@ -196,7 +191,7 @@ class RegressorTrainer:
         torch.save(
             {"train_x": train_x, "train_y": train_y},
             os.path.join(
-                self.data_directory, f"observations/{terrain_class:02d}_class.pth"
+                self.data_directory, f"{terrain_class:02d}_class.pth"
             ),
         )
 
