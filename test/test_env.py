@@ -70,3 +70,5 @@ axs[2].axis("off")
 color_map = axs[3].imshow(grid_map.tensors["colors"].cpu().numpy().transpose(1, 2, 0))
 axs[3].set_title("Color Map")
 axs[3].axis("off")
+
+plt.show()

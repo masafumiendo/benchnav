@@ -43,19 +43,21 @@ sudo systemctl restart docker
 ### Setup with Docker
 
 ```bash
-# build container
-make build
+# build container (with GPU support)
+make build-gpu
+# or build container (without GPU support)
+# make build-cpu
 
 # Open remote container via Vscode (Recommend)
 # 1. Open the folder using vscode
 # 2. Ctrl+P and select 'devcontainer rebuild and reopen in container'
 # Then, you can skip the following commands
 
-# Or Run container via terminal
-make bash
+# Or Run container via terminal (with GPU support)
+make bash-gpu
+# or Run container via terminal (without GPU support)
+# make bash-cpu
 ```
-
-NOTE: Currently, Docker is not supported on CPU-only environment
 
 ## Test
 

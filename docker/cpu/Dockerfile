@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-devel-ubuntu20.04
+FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get -y update && apt-get -y install --no-install-recommends\
@@ -37,8 +37,8 @@ RUN apt-get update && apt-get install -y htop vim ffmpeg
 # clear cache
 RUN rm -rf /var/lib/apt/lists/*
 
-# pytorch 2.0
-RUN pip3 install torch==2.0.0+cu118 torchvision==0.15.1+cu118 torchaudio==2.0.1 --extra-index-url https://download.pytorch.org/whl/cu118
+# pytorch for CPU only
+RUN pip3 install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --extra-index-url https://download.pytorch.org/whl/cpu
 
 WORKDIR /workspace
 COPY src/ src/
