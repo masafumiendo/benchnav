@@ -75,8 +75,8 @@ class TerrainClassificationDataset(BaseDataset):
         Returns:
         - Tuple[torch.Tensor, torch.Tensor]: containing the color map and the mask map.
         """
-        data_item = torch.load(self.file_paths[index])
-        return (data_item["colors"], data_item["t_classes"])
+        tensors = torch.load(self.file_paths[index])["tensors"]
+        return (tensors["colors"], tensors["t_classes"])
 
 
 class SlipRegressionDataset(BaseDataset):
@@ -106,10 +106,14 @@ class SlipRegressionDataset(BaseDataset):
         - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: containing the slope map, the slip map, and the terrain class.
         """
         data_item = torch.load(self.file_paths[index])
+        tensors = data_item["tensors"]
+        distributions = data_item["distributions"]
         return (
-            data_item["slopes"],
-            data_item["slips"].sample(),  # sample the slip map from the distribution
-            data_item["t_classes"],
+            tensors["slopes"],
+            distributions[
+                "latent_models"
+            ].sample(),  # sample the slip map from the distribution
+            tensors["t_classes"],
         )
 
 
@@ -140,9 +144,11 @@ class TraversabilityPredictionDataset(BaseDataset):
         - Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]: containing the color map, the slope map, the mean and standard deviation of the slip map.
         """
         data_item = torch.load(self.file_paths[index])
+        tensors = data_item["tensors"]
+        distributions = data_item["distributions"]
         return (
-            data_item["colors"],
-            data_item["slopes"],
-            data_item["slips"].mean,
-            data_item["slips"].stddev,
+            tensors["colors"],
+            tensors["slopes"],
+            distributions["latent_models"].mean,
+            distributions["latent_models"].stddev,
         )

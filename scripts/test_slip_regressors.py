@@ -46,7 +46,7 @@ def main(device: str) -> None:
     )
     # Set the data directory
     data_directory = os.path.join(
-        script_directory, f"datasets/dataset{dataset_index:02d}/slip_models/"
+        script_directory, f"datasets/dataset{dataset_index:02d}/slip_observations/"
     )
 
     # Set the test inputs
@@ -79,7 +79,7 @@ def main(device: str) -> None:
     for i in range(10):
         # Load the training data
         train_data = torch.load(
-            os.path.join(data_directory, f"observations/{i:02d}_class.pth")
+            os.path.join(data_directory, f"{i:02d}_class.pth")
         )
         train_x = train_data["train_x"].to(device=device)
         train_y = train_data["train_y"].to(device=device)

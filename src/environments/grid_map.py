@@ -2,7 +2,6 @@
 Masafumi Endo, 2024
 """
 
-import numpy as np
 import torch
 from torch.distributions import Normal
 from typing import Optional, Tuple, Dict
@@ -16,7 +15,8 @@ class GridMap:
         grid_size: int,
         resolution: float,
         seed: Optional[int] = None,
-        tensor_data: Optional[dict[torch.Tensor]] = None,
+        tensors: Optional[dict[str, torch.Tensor]] = None,
+        distributions: Optional[dict[str, Normal]] = None,
         device: Optional[str] = None,
     ) -> None:
         """
@@ -26,7 +26,8 @@ class GridMap:
         - grid_size (int): Number of grids along one axis.
         - resolution (float): Resolution of each grid in meters.
         - seed (Optional[int]): Seed for random number generation. Note that this is primarily used for terrain properties generation.
-        - tensor_data (Optional[dict[torch.Tensor]]): Data structure for terrain information.
+        - tensors (Optional[dict[str, torch.Tensor]]): Data structure for distinct terrain information.
+        - distributions (Optional[dict[str, Normal]]): Distributions for terrain information.
         - device (Optional[str]): Device to run the model on.
         """
         self.grid_size = grid_size
@@ -43,10 +44,8 @@ class GridMap:
         self.num_grids = grid_size ** 2
         set_randomness(seed) if seed is not None else None
         # Initialize data structure for terrain information
-        self.tensor_data = (
-            tensor_data
-            if tensor_data is not None
-            else self.initialize_tensor_data(grid_size)
+        self.tensors, self.distributions = self.initialize_terrain_data(
+            grid_size, tensors, distributions
         )
         self.device = (
             device
@@ -57,70 +56,123 @@ class GridMap:
         )
 
     @staticmethod
-    def initialize_tensor_data(grid_size: int) -> Dict[str, torch.Tensor]:
+    def initialize_terrain_data(
+        grid_size: int,
+        tensors: Optional[dict[str, torch.Tensor]] = None,
+        distributions: Optional[dict[str, Normal]] = None,
+    ) -> Tuple[dict[str, torch.Tensor], dict[str, Normal]]:
         """
         Initialize data structure for terrain information with zero-filled torch tensors
         for a square grid.
 
         Attributes:
-        - heights (torch.Tensor): A 2D tensor representing the terrain height map.
-        - slopes (torch.Tensor): A 2D tensor representing the terrain slope values.
-        - t_classes (torch.Tensor): A 2D tensor representing terrain classification, where each class is indicated by one-hot encoding.
-        - colors (torch.Tensor): A 3D tensor (3 x height x width) representing the RGB color values for visualizing the terrain.
-        - slips (Normal): A 2D tensor representing the slip values at each grid location.
+        - tensors (dict[str, torch.Tensor]): Dictionary of torch tensors representing terrain information.
+            - heights (torch.Tensor): Tensor of shape [grid_size, grid_size] representing terrain heights.
+            - slopes (torch.Tensor): Tensor of shape [grid_size, grid_size] representing terrain slopes.
+            - t_classes (torch.Tensor): Tensor of shape [grid_size, grid_size] representing terrain classes.
+            - colors (torch.Tensor): Tensor of shape [3, grid_size, grid_size] representing terrain colors.
+        - distributions (dict[str, Normal]): Dictionary of distributions representing terrain information.
+            - ground_truths (Normal): Normal distribution representing latent slip model.
+            - predictions (Normal): Normal distribution representing slip predictions.
         
         Parameters:
         - grid_size (int): Size of one side of the square grid. The grid is assumed to be square.
+        - tensors (Optional[dict[str, torch.Tensor]]): Data structure for distinct terrain information.
+        - distributions (Optional[dict[str, Normal]]): Distributions for terrain information.
 
         Returns:
-        - A dictionary of torch tensors and a normal distribution representing terrain information.
+        - A dictionary of torch tensors and distributions representing terrain information.
         """
-        return {
-            "heights": torch.zeros((grid_size, grid_size)),
-            "slopes": torch.zeros((grid_size, grid_size)),
-            "t_classes": torch.zeros((grid_size, grid_size)),
-            "colors": torch.zeros((3, grid_size, grid_size)),
-            "slips": Normal(
-                torch.zeros((grid_size, grid_size)), torch.ones((grid_size, grid_size))
-            ),
-        }
+        tensors = (
+            {
+                "heights": torch.zeros((grid_size, grid_size)),
+                "slopes": torch.zeros((grid_size, grid_size)),
+                "t_classes": torch.zeros((grid_size, grid_size)),
+                "colors": torch.zeros((3, grid_size, grid_size)),
+            }
+            if tensors is None
+            else tensors
+        )
+        distributions = (
+            {
+                "latent_models": Normal(
+                    torch.zeros((grid_size, grid_size)),
+                    torch.ones((grid_size, grid_size)),
+                ),
+                "predictions": Normal(
+                    torch.zeros((grid_size, grid_size)),
+                    torch.ones((grid_size, grid_size)),
+                ),
+            }
+            if distributions is None
+            else distributions
+        )
+        return tensors, distributions
 
-    def get_grid_indices_from_position(
-        self, x_pos: float, y_pos: float
-    ) -> Tuple[int, int]:
+    def get_values_from_positions(self, positions: torch.Tensor, attribute: str):
         """
-        Get grid indices for given positional information.
+        Get corresponding value information or a masked distribution for batches of position data across multiple trajectories,
+        based on a specified attribute.
 
         Parameters:
-        - x_pos (float): X position in meters.
-        - y_pos (float): Y position in meters.
+        - positions (torch.Tensor): A tensor of shape [batch_size, num_positions, 3] where each row corresponds to (x, y, theta) for each state.
+        - attribute (str): A string specifying which attribute to retrieve (e.g., 'heights', 'slopes', 'latent_models').
 
         Returns:
-        - A tuple of (x_index, y_index).
+        - A tensor containing the requested value information or a masked distribution for the states across all trajectories, based on the specified attribute.
         """
-        x_index = self.calculate_index_from_position(
-            x_pos, self.x_limits[0], self.grid_size
-        )
-        y_index = self.calculate_index_from_position(
-            y_pos, self.y_limits[0], self.grid_size
-        )
-        return x_index, y_index
+        indices = self.get_grid_indices_from_positions(positions)
+        batch_size, num_positions = indices.shape[:2]
 
-    def calculate_index_from_position(
-        self, position: float, lower_limit: float, max_index: int
-    ) -> int:
+        # Flatten indices to use advanced indexing, handle 3D -> 2D conversion
+        flat_indices = indices.view(-1, 2)
+
+        if attribute in self.tensors:
+            # Fetching from tensors
+            fetched_values = self.tensors[attribute][
+                flat_indices[:, 0], flat_indices[:, 1]
+            ].view(batch_size, num_positions)
+            return fetched_values
+        elif attribute in self.distributions:
+            # Handling distributions: create a masked distribution based on indices.
+            distribution = self.distributions[attribute]
+            means = distribution.mean[flat_indices[:, 0], flat_indices[:, 1]].view(
+                batch_size, num_positions
+            )
+            stddevs = distribution.stddev[flat_indices[:, 0], flat_indices[:, 1]].view(
+                batch_size, num_positions
+            )
+            return Normal(means, stddevs)
+        else:
+            raise KeyError(
+                f"Attribute '{attribute}' not found in tensors or distributions."
+            )
+
+    def get_grid_indices_from_positions(self, positions: torch.Tensor) -> torch.Tensor:
         """
-        Calculate x or y axis index for given positional information.
+        Get grid indices for batches of positional information for multiple trajectories.
 
         Parameters:
-        - position (float): X or Y axis position.
-        - lower_limit (float): Lower limit of the axis.
-        - max_index (int): Maximum index (width or height of the grid).
+        - positions (torch.Tensor): A tensor of shape [batch_size, num_positions, 3] 
+          with each row being (x_pos, y_pos, theta) for each state in each trajectory.
 
         Returns:
-        - Calculated index as an integer.
+        - A tensor of shape [batch_size, num_positions, 2] with each row being (x_index, y_index).
         """
-        index = int(np.floor((position - lower_limit) / self.resolution))
-        if not 0 <= index < max_index:
-            raise ValueError("Given position is out of the map!")
-        return index
+        # Convert positions to grid indices, accounting for 3D structure
+        indices = (
+            (
+                (
+                    positions[..., :2]
+                    - torch.tensor(
+                        [self.x_limits[0], self.y_limits[0]], device=self.device
+                    )
+                )
+                / self.resolution
+            )
+            .floor()
+            .int()
+        )
+        # Ensure indices are within bounds
+        indices = indices.clamp(0, self.grid_size - 1)
+        return indices

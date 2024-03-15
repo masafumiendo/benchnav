@@ -50,27 +50,23 @@ terrain_coloring.set_terrain_class_coloring(
 fig, axs = plt.subplots(1, 4, figsize=(18, 6))
 
 # Height Map
-axs[0].imshow(grid_map.tensor_data["heights"].cpu().numpy(), cmap="turbo")
+axs[0].imshow(grid_map.tensors["heights"].cpu().numpy(), cmap="turbo")
 axs[0].set_title("Height Map")
 axs[0].axis("off")
 
 # Slope Map
-axs[1].imshow(grid_map.tensor_data["slopes"].cpu().numpy(), cmap="turbo")
+axs[1].imshow(grid_map.tensors["slopes"].cpu().numpy(), cmap="turbo")
 axs[1].set_title("Slope Map")
 axs[1].axis("off")
 
 # Terrain Class Map
 terrain_class_map = axs[2].imshow(
-    grid_map.tensor_data["t_classes"].cpu().numpy(), cmap="jet"
+    grid_map.tensors["t_classes"].cpu().numpy(), cmap="jet"
 )
 axs[2].set_title("Terrain Class Map")
 axs[2].axis("off")
 
 # Color Map
-color_map = axs[3].imshow(
-    grid_map.tensor_data["colors"].cpu().numpy().transpose(1, 2, 0)
-)
+color_map = axs[3].imshow(grid_map.tensors["colors"].cpu().numpy().transpose(1, 2, 0))
 axs[3].set_title("Color Map")
 axs[3].axis("off")
-
-plt.show()

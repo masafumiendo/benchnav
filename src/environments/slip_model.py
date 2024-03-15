@@ -63,13 +63,13 @@ class SlipModel:
         samples = self.distribution.sample(sample_shape=torch.Size([sample_shape]))
         return torch.clamp(samples, 0, 1)
 
-    def model_distribution(self, phi: Tensor) -> Normal:
+    def model_distribution(self, phi: Union[float, Tensor]) -> Normal:
         """
         Define the distribution of slip from slope angle, without noise.
         This method supports only tensor inputs for the slope angle.
 
         Parameters:
-        - phi (Tensor): Slope angle, can be a tensor of values.
+        - phi (Union[float, Tensor]): Slope angle, can be a single value or a tensor of values.
 
         Returns:
         - dist (Normal): Slip distribution as a normal distribution.

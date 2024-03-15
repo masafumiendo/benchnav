@@ -19,7 +19,7 @@ class TerrainGeometry:
     def __init__(
         self,
         grid_map: GridMap,
-        roughness_exponent: float = 0.8,
+        roughness_exponent: float = 0.75,
         amplitude_gain: float = 10,
     ):
         """
@@ -74,14 +74,16 @@ class TerrainGeometry:
                     (start_pos.unsqueeze(0), goal_pos.unsqueeze(0)), dim=0
                 )
             else:
-                crater_positions = torch.empty((0, 2))
-            crater_radii = torch.full((crater_positions.shape[0],), safety_margin)
+                crater_positions = torch.empty((0, 2), device=self.grid_map.device)
+            crater_radii = torch.full(
+                (crater_positions.shape[0],), safety_margin, device=self.grid_map.device
+            )
 
             # Place craters
             count = 0
             while craters_placed < num_craters:
                 crater_center = (
-                    torch.rand(2)
+                    torch.rand(2, device=self.grid_map.device)
                     * (
                         (grid_size - 1) * self.grid_map.resolution
                         - self.grid_map.x_limits[0]
@@ -109,7 +111,11 @@ class TerrainGeometry:
                         (crater_positions, crater_center.unsqueeze(0)), dim=0
                     )
                     crater_radii = torch.cat(
-                        (crater_radii, torch.tensor([crater_radius])), dim=0
+                        (
+                            crater_radii,
+                            torch.tensor([crater_radius], device=self.grid_map.device),
+                        ),
+                        dim=0,
                     )
                     craters_placed += 1
 
@@ -124,8 +130,8 @@ class TerrainGeometry:
             heights = self.generate_fractal_surface(heights)
 
         # Crop the edges to avoid nan values for slope generation
-        self.grid_map.tensor_data["heights"] = heights[1:-1, 1:-1]
-        self.grid_map.tensor_data["slopes"] = self.generate_slopes(heights)
+        self.grid_map.tensors["heights"] = heights[1:-1, 1:-1]
+        self.grid_map.tensors["slopes"] = self.generate_slopes(heights)
 
     def generate_crater(
         self,
@@ -156,8 +162,8 @@ class TerrainGeometry:
             ).item()
         )
         xx, yy = torch.meshgrid(
-            torch.linspace(-radius, radius, grid_size),
-            torch.linspace(-radius, radius, grid_size),
+            torch.linspace(-radius, radius, grid_size, device=self.grid_map.device),
+            torch.linspace(-radius, radius, grid_size, device=self.grid_map.device),
             indexing="ij",
         )
 
@@ -165,24 +171,39 @@ class TerrainGeometry:
         # Adjust the crater profile calculation to ensure the correct gradient
         crater_profile = torch.where(
             distances <= radius,
-            -torch.tan(torch.deg2rad(torch.tensor(angle))) * (radius - distances),
-            torch.zeros_like(distances),
-        )
-        center_x_index, center_y_index = self.grid_map.get_grid_indices_from_position(
-            crater_center[0].item(), crater_center[1].item()
+            -torch.tan(torch.deg2rad(torch.tensor(angle, device=self.grid_map.device)))
+            * (radius - distances),
+            torch.zeros_like(distances, device=self.grid_map.device),
         )
 
-        for i in range(grid_size):
-            for j in range(grid_size):
-                x_index = center_x_index - grid_size // 2 + i
-                y_index = center_y_index - grid_size // 2 + j
-                if (
-                    0 <= x_index < self.grid_map.grid_size + 2
-                    and 0 <= y_index < self.grid_map.grid_size + 2
-                ):
-                    heights[y_index, x_index] += crater_profile[
-                        j, i
-                    ]  # Ensure depth is subtracted to create a depression
+        center_indices = self.grid_map.get_grid_indices_from_positions(
+            crater_center.unsqueeze(0).unsqueeze(0)
+        ).squeeze()
+
+        # Calculate the start and end indices for applying the crater
+        start_x_index = max(center_indices[0] - grid_size // 2, 0)
+        start_y_index = max(center_indices[1] - grid_size // 2, 0)
+        end_x_index = min(center_indices[0] + grid_size // 2, heights.shape[1])
+        end_y_index = min(center_indices[1] + grid_size // 2, heights.shape[0])
+
+        # Compute the slice of the heights tensor to be modified
+        height_slice = heights[start_y_index:end_y_index, start_x_index:end_x_index]
+
+        # Compute the corresponding slice of the crater profile
+        # Adjust the slicing based on the actual starting indices to match the dimensions
+        profile_start_x = max(grid_size // 2 - center_indices[0], 0)
+        profile_start_y = max(grid_size // 2 - center_indices[1], 0)
+        profile_end_x = profile_start_x + (end_x_index - start_x_index)
+        profile_end_y = profile_start_y + (end_y_index - start_y_index)
+
+        crater_slice = crater_profile[
+            profile_start_y:profile_end_y, profile_start_x:profile_end_x
+        ]
+
+        # Apply the crater profile to the selected slice of the height map
+        heights[start_y_index:end_y_index, start_x_index:end_x_index] = torch.where(
+            crater_slice != 0, height_slice + crater_slice, height_slice
+        )
 
         # Adjust the entire terrain to ensure no negative heights, if necessary
         heights = self.adjust_height_values(heights)
@@ -368,7 +389,7 @@ class TerrainColoring:
                 "Sum of occupancy vector exceeds one! The vector has been normalized."
             )
 
-        self.grid_map.tensor_data["t_classes"] = self.generate_multi_terrain(occupancy)
+        self.grid_map.tensors["t_classes"] = self.generate_multi_terrain(occupancy)
         self.create_color_map(
             occupancy=occupancy,
             lower_threshold=lower_threshold,
@@ -441,7 +462,7 @@ class TerrainColoring:
         """
         # Normalize terrain classes to range [-num_classes, 0] for color mapping
         num_classes = occupancy.shape[0]
-        facecolors = self.grid_map.tensor_data["t_classes"]
+        facecolors = self.grid_map.tensors["t_classes"]
         norm = matplotlib.colors.Normalize(vmin=0, vmax=num_classes - 1)
         colors = plt.cm.copper(norm(facecolors.cpu().numpy()))[:, :, 0:3]
         colors = (
@@ -469,7 +490,7 @@ class TerrainColoring:
         - upper_threshold (float): Upper threshold for light source height.
         - ambient_intensity (float): Ambient light intensity for shading.
         """
-        heights = self.grid_map.tensor_data["heights"]
+        heights = self.grid_map.tensors["heights"]
 
         # Calculate normal vector
         dx = heights[:, :-1] - heights[:, 1:]
@@ -501,7 +522,7 @@ class TerrainColoring:
         shade = torch.sum(light_source[:, None, None] * norm, axis=0, keepdims=True)
         color_shaded = shade * colors + ambient_intensity * colors
         color_shaded = torch.clamp(color_shaded, 0, 1).squeeze()
-        self.grid_map.tensor_data["colors"] = torch.clamp(color_shaded, 0, 1).squeeze()
+        self.grid_map.tensors["colors"] = torch.clamp(color_shaded, 0, 1).squeeze()
 
 
 class TerrainTraversability:
@@ -515,9 +536,9 @@ class TerrainTraversability:
 
         self.grid_map = grid_map
         # Check tensor data for terrain information
-        if "slopes" not in self.grid_map.tensor_data:
+        if "slopes" not in self.grid_map.tensors:
             raise ValueError("Slope data is required for setting traversability.")
-        if "t_classes" not in self.grid_map.tensor_data:
+        if "t_classes" not in self.grid_map.tensors:
             raise ValueError(
                 "Terrain class data is required for setting traversability."
             )
@@ -529,7 +550,7 @@ class TerrainTraversability:
         Parameters:
         - slip_models (Dict[int, SlipModel]): Slip models for each terrain class.
         """
-        t_classes = self.grid_map.tensor_data["t_classes"]
+        t_classes = self.grid_map.tensors["t_classes"]
 
         # Check if the number of terrain classes exceeds the number of slip models
         if t_classes.unique().min() < 0 or t_classes.unique().max() >= len(slip_models):
@@ -548,7 +569,7 @@ class TerrainTraversability:
             device=self.grid_map.device,
         )
 
-        slopes = self.grid_map.tensor_data["slopes"]
+        slopes = self.grid_map.tensors["slopes"]
         for t_class, slip_model in slip_models.items():
             mask = t_classes == t_class
             if mask.any():  # Check if there are any elements in this class
@@ -557,4 +578,4 @@ class TerrainTraversability:
                 slips_mean[mask] = distribution.mean
                 slips_stddev[mask] = distribution.stddev
 
-        self.grid_map.tensor_data["slips"] = Normal(slips_mean, slips_stddev)
+        self.grid_map.distributions["latent_models"] = Normal(slips_mean, slips_stddev)
