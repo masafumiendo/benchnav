@@ -3,7 +3,7 @@ path/motion planning benchmark for planetary exploration rovers
 
 ## Dependencies
 
-- NVIDIA Driver 510 or later (due to PyTorch 2.x)
+- NVIDIA Driver 510 or later (due to PyTorch 2.x) if you want to use GPU
 
 ## Installation
 

@@ -26,6 +26,7 @@ bash-gpu:
 		bash
 
 bash-cpu:
+	xhost +local:docker && \
 	docker run -it \
 		-v ${PWD}/workspace \
 		-v ${PWD}:/workspace/$(NAME) \
