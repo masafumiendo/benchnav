@@ -4,8 +4,11 @@ DOCKER_IMAGE_NAME=$(NAME):$(VERSION)
 CONTAINER_NAME=$(NAME)
 GPU_ID=all
 
-build:
-	docker build -t $(DOCKER_IMAGE_NAME) .
+build-gpu:
+	docker build -t $(DOCKER_IMAGE_NAME) -f docker/gpu/Dockerfile .
+
+build-cpu:
+	docker build -t $(DOCKER_IMAGE_NAME) -f docker/cpu/Dockerfile .
 
 bash:
 	xhost +local:docker && \
