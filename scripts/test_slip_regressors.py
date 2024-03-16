@@ -78,9 +78,7 @@ def main(device: str) -> None:
     # Load all the trained and actual models and test them
     for i in range(10):
         # Load the training data
-        train_data = torch.load(
-            os.path.join(data_directory, f"{i:02d}_class.pth")
-        )
+        train_data = torch.load(os.path.join(data_directory, f"{i:02d}_class.pth"))
         train_x = train_data["train_x"].to(device=device)
         train_y = train_data["train_y"].to(device=device)
         # Initialize the GP model

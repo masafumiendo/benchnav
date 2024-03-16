@@ -2,15 +2,16 @@
 Kohei Honda and Masafumi Endo, 2024.
 """
 
-import os
-
 from __future__ import annotations
+
+import os
 from typing import Optional
 
 import numpy as np
 import torch
 import gymnasium as gym
 import matplotlib.pyplot as plt
+from matplotlib.animation import ArtistAnimation
 
 from src.environments.grid_map import GridMap
 from src.simulator.robot_model import UnicycleModel
@@ -26,6 +27,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         goal_pos: Optional[torch.Tensor] = None,
         delta_t: Optional[float] = 0.1,
         time_limit: Optional[int] = 100,
+        render_mode: Optional[str] = "human",
         seed: Optional[int] = None,
         dtype: Optional[torch.dtype] = torch.float32,
         device: Optional[str] = None,
@@ -39,6 +41,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - goal_pos (Optional[torch.Tensor]): Goal position of the agent (x, y) [m].
         - delta_t (Optional[float]): Time step for simulation [s].
         - time_limit (Optional[int]): Time limit for the episode [s].
+        - render_mode (Optional[str]): Rendering mode for the environment.
         - seed (Optional[int]): Random seed for reproducibility.
         - dtype (Optional[torch.dtype]): Data type for torch tensors.
         - device (Optional[str]): Device to run the model on.
@@ -54,6 +57,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             else "cpu"
         )
 
+        # Set random seed for reproducibility
+        set_randomness(self._seed)
+
         # Define time step, time limit, and elapsed time
         self._delta_t = delta_t
         self._time_limit = time_limit
@@ -68,13 +74,16 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             self._grid_map, self._model_config, self._dtype, self._device
         )
 
-        # Set random seed for reproducibility
-        set_randomness(self._seed)
-
         # Initialize start and goal positions and robot state
         self._start_pos = self._initialize_position(start_pos)
         self._goal_pos = self._initialize_position(goal_pos)
         self._robot_state = self._initialize_robot_state()
+
+        # Set rendering mode and initialize rendering
+        if render_mode not in ["human", "rgb_array"]:
+            raise ValueError("Invalid rendering mode. Choose 'human' or 'rgb_array'.")
+        self._render_mode = render_mode
+        self._rendered_frames = []
 
     def _initialize_position(self, pos: Optional[torch.Tensor]) -> torch.Tensor:
         """
@@ -114,6 +123,36 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             [*self._start_pos, theta], dtype=self._dtype, device=self._device
         )
 
+    def reset(self, seed: Optional[int] = None) -> torch.Tensor:
+        """
+        Reset the environment.
+        Parameters:
+        - seed (Optional[int]): Random seed for reproducibility.
+
+        Returns:
+        - robot_state (torch.Tensor): Robot state tensor (x, y, theta) after reset.
+        """
+        # Set random seed for reproducibility
+        set_randomness(seed)
+
+        # Reset elapsed time
+        self._elapsed_time = 0
+
+        # Initialize start and goal positions and robot state
+        self._start_pos = self._initialize_position(self._start_pos)
+        self._goal_pos = self._initialize_position(self._goal_pos)
+        self._robot_state = self._initialize_robot_state()
+
+        # Reset rendering with two subplots
+        self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
+
+        self._ax.set_aspect("equal")
+        self._ax.set_title("Terrain Appearance Map")
+
+        self._rendered_frames = []
+
+        return self._robot_state
+
     def step(self, action: torch.Tensor) -> tuple[torch.Tensor, bool, bool]:
         """
         Step the environment.
@@ -140,42 +179,24 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         is_truncated = self._elapsed_time > self._time_limit
         return self._robot_state, is_terminated, is_truncated
 
-    def reset(self, seed: Optional[int] = None) -> torch.Tensor:
+    def collision_check(
+        self, states: torch.Tensor, stuck_threshold: float = 0.9
+    ) -> torch.Tensor:
         """
-        Reset the environment.
+        Check for collisions at the given position.
+
         Parameters:
-        - seed (Optional[int]): Random seed for reproducibility.
+        - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
+        - stuck_threshold (float): Threshold for collision detection ranging from 0 to 1.
 
         Returns:
-        - robot_state (torch.Tensor): Robot state tensor (x, y, theta) after reset.
+        - is_collisions (torch.Tensor): Collision states at the given position.
         """
-        # Set random seed for reproducibility
-        set_randomness(seed)
-
-        # Reset elapsed time
-        self._elapsed_time = 0
-
-        # Initialize start and goal positions and robot state
-        self._start_pos = self._initialize_position(self._start_pos)
-        self._goal_pos = self._initialize_position(self._goal_pos)
-        self._robot_state = self._initialize_robot_state()
-
-        # Reset rendering with two subplots
-        self._fig, self._ax = plt.subplots(1, 2, tight_layout=True)
-
-        self._ax[0].set_xlim(self._grid_map.x_limits)
-        self._ax[0].set_ylim(self._grid_map.y_limits)
-        self._ax[0].set_aspect("equal")
-        self._ax[0].set_title("Terrain Appearance Map")
-
-        self._ax[1].set_xlim(self._grid_map.x_limits)
-        self._ax[1].set_ylim(self._grid_map.y_limits)
-        self._ax[1].set_aspect("equal")
-        self._ax[1].set_title("Terrain Traversability Map")
-
-        self._rendered_frames = []
-
-        return self._robot_state
+        distributions = self._grid_map.get_values_from_positions(
+            states, "latent_models"
+        )
+        slips = torch.clamp(distributions.sample((1,)), 0, 1)
+        return (slips > stuck_threshold).squeeze(1)
 
     def render(
         self,
@@ -191,42 +212,45 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
         """
-
         # Plot static information (terrain background maps and robot start and goal positions)
-        self._ax[0].imshow(
+        self._ax.imshow(
             self._grid_map.tensors["colors"].cpu().numpy().transpose(1, 2, 0),
-            extent=self._grid_map.extent,
             origin="lower",
-            zorder=10,
+            zorder=1,
+            extent=self._grid_map.x_limits + self._grid_map.y_limits,
         )
-        self._ax[1].imshow(
-            self._grid_map.tensors["latent_models"].mean.cpu().numpy(),
-            extent=self._grid_map.extent,
-            origin="lower",
-            zorder=10,
-        )
-        self._ax[0].scatter(
+        self._ax.scatter(
             self._start_pos[0].item(),
             self._start_pos[1].item(),
+            s=25,
             c="red",
             marker="o",
-            zorder=10,
+            zorder=2,
         )
-        self._ax[0].scatter(
+        self._ax.scatter(
             self._goal_pos[0].item(),
             self._goal_pos[1].item(),
-            c="orange",
+            s=25,
+            c="magenta",
             marker="x",
-            zorder=10,
+            zorder=2,
         )
 
         # Plot dynamic trajectory, top samples, and collision states
         self._render_dynamic_information(
-            trajectory, top_samples, is_collisions, self._ax[0]
+            trajectory, top_samples, is_collisions, self._ax
         )
-        self._render_dynamic_information(
-            trajectory, top_samples, is_collisions, self._ax[1]
-        )
+
+        # Append rendered frames for animation
+        if self._render_mode == "human":
+            plt.pause(0.001)
+            plt.cla()
+        elif self._render_mode == "rgb_array":
+            self._fig.canvas.draw()
+            frame = np.frombuffer(self._fig.canvas.tostring_rgb(), dtype=np.uint8)
+            frame = frame.reshape(self._fig.canvas.get_width_height()[::-1] + (3,))
+            plt.cla()
+            self._rendered_frames.append(frame)
 
     def _render_dynamic_information(
         self,
@@ -250,7 +274,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             self._robot_state[1].item(),
             c="green",
             marker="o",
-            zorder=100,
+            zorder=150,
         )
 
         # Trajectory if provided
@@ -266,7 +290,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                 c=colors,
                 marker="o",
                 s=3,
-                zorder=2,
+                zorder=100,
             )
 
         # Top samples if provided
@@ -284,7 +308,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     top_samples[i, :, 1],
                     c="lightblue",
                     alpha=top_weights[i],
-                    zorder=1,
+                    zorder=50,
                 )
 
     def close(self, file_path: str = None) -> None:
@@ -294,6 +318,21 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         Parameters:
         - file_path (str): File path to save the animation.
         """
-        if file_path is not None:
-            if not os.path.exists(file_path):
-                os.makedirs(file_path)
+        if len(self._rendered_frames) > 0:
+            if file_path is not None:
+                file_name = (
+                    f"planetary_env_{self._seed}.gif"
+                    if self._seed
+                    else "planetary_env.gif"
+                )
+                file_path = os.path.join(file_path, file_name)
+                directory = os.path.dirname(file_path)
+                if directory and not os.path.exists(directory):
+                    os.makedirs(directory)
+
+                animation = ArtistAnimation(
+                    self._fig, self._rendered_frames, interval=50, blit=True
+                )
+                animation.save(file_path, writer="imagemagick", fps=10)
+
+            plt.close(self._fig)

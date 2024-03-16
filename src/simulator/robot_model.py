@@ -54,7 +54,7 @@ class UnicycleModel:
         )
 
     def transit(
-        self, state: torch.Tensor, action: torch.Tensor, delta_t: float
+        self, state: torch.Tensor, action: torch.Tensor, delta_t: float = 0.1
     ) -> torch.Tensor:
         """
         Compute the dynamics of the robot.
@@ -67,6 +67,11 @@ class UnicycleModel:
         Returns:
         - next_state (torch.Tensor): Next state of the robot as batch of tensors (x, y, theta).
         """
+        # Get traversability at the current position
+        trav = self._traversability_model.compute_traversability(
+            state.unsqueeze(1)
+        ).squeeze(1)
+
         # Unpack state and action
         x, y, theta = state.unbind(1)
         v, omega = action.unbind(1)
@@ -74,9 +79,6 @@ class UnicycleModel:
         # Clamp action to the action space bounds
         v = torch.clamp(v, self._min_action[0], self._max_action[0])
         omega = torch.clamp(omega, self._min_action[1], self._max_action[1])
-
-        # Get traversability at the current position
-        trav = self._traversability_model.compute_traversability(x, y)
 
         # Compute next state
         x += trav * v * torch.cos(theta) * delta_t
