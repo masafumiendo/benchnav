@@ -68,9 +68,7 @@ class UnicycleModel:
         - next_state (torch.Tensor): Next state of the robot as batch of tensors (x, y, theta).
         """
         # Get traversability at the current position
-        trav = self._traversability_model.compute_traversability(
-            state.unsqueeze(1)
-        ).squeeze(1)
+        trav = self.get_traversability(state.unsqueeze(1)).squeeze(1)
 
         # Unpack state and action
         x, y, theta = state.unbind(1)
@@ -91,3 +89,15 @@ class UnicycleModel:
         x = torch.clamp(x, self._grid_map.x_limits[0], self._grid_map.x_limits[1])
         y = torch.clamp(y, self._grid_map.y_limits[0], self._grid_map.y_limits[1])
         return torch.stack([x, y, theta], dim=1)
+
+    def get_traversability(self, state: torch.Tensor) -> torch.Tensor:
+        """
+        Get traversability at the given position.
+
+        Parameters:
+        - state (torch.Tensor): State of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
+
+        Returns:
+        - trav (torch.Tensor): Traversability at the given position as batch of traversability tensors shaped [batch_size, num_positions].
+        """
+        return self._traversability_model.get_traversability(state)

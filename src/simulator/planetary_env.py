@@ -180,23 +180,20 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         return self._robot_state, is_terminated, is_truncated
 
     def collision_check(
-        self, states: torch.Tensor, stuck_threshold: float = 0.9
+        self, states: torch.Tensor, stuck_threshold: float = 0.1
     ) -> torch.Tensor:
         """
         Check for collisions at the given position.
 
         Parameters:
         - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
-        - stuck_threshold (float): Threshold for collision detection ranging from 0 to 1.
+        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
 
         Returns:
         - is_collisions (torch.Tensor): Collision states at the given position.
         """
-        distributions = self._grid_map.get_values_from_positions(
-            states, "latent_models"
-        )
-        slips = torch.clamp(distributions.sample((1,)), 0, 1)
-        return (slips > stuck_threshold).squeeze(1)
+        trav = self._dynamics.get_traversability(states)
+        return trav <= stuck_threshold
 
     def render(
         self,
