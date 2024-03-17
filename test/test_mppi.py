@@ -9,9 +9,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
-from torch.distributions import Normal
 from gpytorch.likelihoods import GaussianLikelihood
-import matplotlib.pyplot as plt
 
 from src.environments.grid_map import GridMap
 from src.simulator.planetary_env import PlanetaryEnv
