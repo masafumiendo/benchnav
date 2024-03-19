@@ -15,8 +15,8 @@ from src.environments.grid_map import GridMap
 from src.simulator.planetary_env import PlanetaryEnv
 from src.simulator.utils import ModelConfig
 from src.simulator.robot_model import UnicycleModel
-from src.planner.mppi import MPPI
-from src.planner.objectives import Objectives
+from src.planners.local_planners.mppi import MPPI
+from src.planners.local_planners.objectives import Objectives
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.prediction_models.trainers.utils import load_model_state_dict
 from src.prediction_models.trainers.utils import load_slip_regressors
