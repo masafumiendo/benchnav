@@ -13,6 +13,7 @@ requires-python = ">=3.10"
 dependencies = [
     "matplotlib==3.8.2",
     "seaborn==0.13.2",
+    "imageio==2.34.0",
     "fire==0.5.0",
     "numpy==1.26.2",
     "opensimplex==0.4.5",

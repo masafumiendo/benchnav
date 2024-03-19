@@ -164,3 +164,4 @@ cython_debug/
 # dynamically generated data files that should not be tracked in version control.
 datasets/
 trained_models/
+results/

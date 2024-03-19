@@ -190,9 +190,7 @@ class RegressorTrainer:
         # Save the training inputs and outputs as a dictionary
         torch.save(
             {"train_x": train_x, "train_y": train_y},
-            os.path.join(
-                self.data_directory, f"{terrain_class:02d}_class.pth"
-            ),
+            os.path.join(self.data_directory, f"{terrain_class:02d}_class.pth"),
         )
 
         # Save the learned regressor model

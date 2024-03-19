@@ -21,74 +21,52 @@ class TraversabilityModel:
         """
         self._grid_map = grid_map
         self._model_config = model_config
+        self._risks = (
+            self._infer_risk_map() if self._model_config.mode == "inference" else None
+        )
 
-    def compute_traversability(
-        self, x: torch.Tensor, y: torch.Tensor, n_samples: int = 1
-    ) -> torch.Tensor:
+    def _infer_risk_map(self, num_samples: int = 1000) -> torch.Tensor:
         """
-        Compute traversability at the given position.
-        Here, 'computation' express retrieving traversability either from the observation or inference mode.
+        Precompute the risk map for inference mode using the predicted slip distribution.
+
+        Parameters:
+        - num_samples (int): Number of samples to draw from the predicted slip distribution.
+
+        Returns:
+        - risks (torch.Tensor): Risk map for inference mode.
+        """
+        distributions = self._grid_map.distributions["predictions"]
+        if self._model_config.inference_metric == "expected_value":
+            return distributions.mean
+        else:
+            samples = distributions.sample((num_samples,))
+            var = torch.quantile(samples, self._model_config.confidence_value, dim=0)
+            if self._model_config.inference_metric == "var":
+                return var
+            elif self._model_config.inference_metric == "cvar":
+                mask = samples > var.unsqueeze(0)
+                tail_samples = torch.where(
+                    mask, samples, torch.tensor(torch.nan, device=samples.device)
+                )
+                return torch.nanmean(tail_samples, dim=0)
+
+    def get_traversability(self, states: torch.Tensor) -> torch.Tensor:
+        """
+        Get traversability at the given position.
         Observation mode: Draw samples from the slip distribution during trajectory execution.
         Inference mode: Infer traversability from the predicted slip distribution during trajectory planning.
 
         Parameters:
-        - x (torch.Tensor): X position in meters.
-        - y (torch.Tensor): Y position in meters.
-        - n_samples (int): Number of samples to draw from the slip distribution.
+        - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
 
         Returns:
         - trav (torch.Tensor): Traversability at the given position.
         """
-        # Check x and y tensors has only a unique position
-        if not (x == x[0]).all() or not (y == y[0]).all():
-            raise ValueError("Multiple positions are not supported!")
-        x_index, y_index = self._grid_map.get_grid_indices_from_position(x[0], y[0])
-
-        # Get slip at the given position
         if self._model_config.mode == "observation":
-            return self._observation_mode(x_index, y_index, n_samples)
-        elif self._model_config.mode == "inference":
-            return self._inference_mode(x_index, y_index)
-
-    def _observation_mode(
-        self, x_index: int, y_index: int, n_samples: int
-    ) -> torch.Tensor:
-        """
-        Get traversability at the given position in observation mode.
-
-        Parameters:
-        - x_index (int): X index in the grid map.
-        - y_index (int): Y index in the grid map.
-        - n_samples (int): Number of samples to draw from the slip distribution.
-
-        Returns:
-        - trav (torch.Tensor): Traversability at the given position.
-        """
-        distribution = self._grid_map.tensors["latent_models"]
-        observation = distribution.sample((n_samples,))[y_index, x_index]
-        return 1 - torch.clamp(observation, 0, 1)
-
-    def _inference_mode(self, x_index: int, y_index: int) -> torch.Tensor:
-        """
-        Get traversability at the given position in inference mode.
-
-        Parameters:
-        - x_index (int): X index in the grid map.
-        - y_index (int): Y index in the grid map.
-
-        Returns:
-        - trav (torch.Tensor): Traversability at the given position.
-        """
-        distribution = self._grid_map.tensors["predictions"]
-        if self._model_config.inference_metric == "expected_value":
-            # Compute expected value
-            inference = distribution.mean[y_index, x_index]
-        elif self._model_config.inference_metric == "var":
-            # Retrieve mean and standard deviation
-            pred_mean = distribution.mean[y_index, x_index]
-            pred_stddev = distribution.stddev[y_index, x_index]
-            # Compute value at risk
-            inference = pred_mean + pred_stddev * distribution.icdf(
-                torch.tensor(self._model_config.confidence_value)
+            distributions = self._grid_map.get_values_at_positions(
+                self._grid_map.distributions["latent_models"], states
             )
-        return 1 - torch.clamp(inference, 0, 1)
+            return 1 - torch.clamp(distributions.sample(), 0, 1)
+        elif self._model_config.mode == "inference":
+            risks = self._grid_map.get_values_at_positions(self._risks, states)
+            return 1 - torch.clamp(risks, 0, 1)

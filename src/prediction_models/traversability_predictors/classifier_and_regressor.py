@@ -53,8 +53,8 @@ class TraversabilityPredictor:
         - Normal: the predictive distribution of the traversability.
         """
         # Move the data to the device
-        colors = colors.to(self.device)
-        slopes = slopes.to(self.device)
+        colors = colors.to(self.device).unsqueeze(0)
+        slopes = slopes.to(self.device).unsqueeze(0)
 
         # Predict the terrain class
         t_classes = self.terrain_classifier.predict(colors)
@@ -71,4 +71,4 @@ class TraversabilityPredictor:
                 slip_stddev[mask] = slip_dist.stddev
 
         # Return the predictive distribution of the traversability
-        return Normal(slip_mean, slip_stddev)
+        return Normal(slip_mean.squeeze(0), slip_stddev.squeeze(0))
