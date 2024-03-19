@@ -144,7 +144,7 @@ def main(device: str):
 
     # Set the unicycle model with the traversability model in inference mode
     model_config = ModelConfig(
-        mode="inference", inference_metric="var", confidence_value=0.9
+        mode="inference", inference_metric="cvar", confidence_value=0.9
     )
 
     dynamics = UnicycleModel(

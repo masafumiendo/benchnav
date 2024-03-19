@@ -44,8 +44,11 @@ class TraversabilityModel:
             if self._model_config.inference_metric == "var":
                 return var
             elif self._model_config.inference_metric == "cvar":
-                tail_samples = samples[samples > var]
-                return tail_samples.mean()
+                mask = samples > var.unsqueeze(0)
+                tail_samples = torch.where(
+                    mask, samples, torch.tensor(torch.nan, device=samples.device)
+                )
+                return torch.nanmean(tail_samples, dim=0)
 
     def get_traversability(self, states: torch.Tensor) -> torch.Tensor:
         """
