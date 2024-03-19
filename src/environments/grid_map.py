@@ -17,6 +17,7 @@ class GridMap:
         seed: Optional[int] = None,
         tensors: Optional[dict[str, torch.Tensor]] = None,
         distributions: Optional[dict[str, Normal]] = None,
+        instance_name: Optional[str] = None,
         device: Optional[str] = None,
     ) -> None:
         """
@@ -28,6 +29,7 @@ class GridMap:
         - seed (Optional[int]): Seed for random number generation. Note that this is primarily used for terrain properties generation.
         - tensors (Optional[dict[str, torch.Tensor]]): Data structure for distinct terrain information.
         - distributions (Optional[dict[str, Normal]]): Distributions for terrain information.
+        - instance_name (Optional[str]): Name of the instance of the grid map containing terrain information.
         - device (Optional[str]): Device to run the model on.
         """
         self.device = (
@@ -51,8 +53,8 @@ class GridMap:
         self.num_grids = grid_size ** 2
         set_randomness(seed) if seed is not None else None
         # Initialize data structure for terrain information
-        self.tensors, self.distributions = self.initialize_terrain_data(
-            grid_size, tensors, distributions
+        self.tensors, self.distributions, self.instance_name = self.initialize_terrain_data(
+            grid_size, tensors, distributions, instance_name
         )
         # Move the tensors and distributions to the device
         self.move_to_device(self.tensors)
@@ -63,6 +65,7 @@ class GridMap:
         grid_size: int,
         tensors: Optional[dict[str, torch.Tensor]] = None,
         distributions: Optional[dict[str, Normal]] = None,
+        instance_name: Optional[str] = None,
     ) -> Tuple[dict[str, torch.Tensor], dict[str, Normal]]:
         """
         Initialize data structure for terrain information with zero-filled torch tensors
@@ -82,6 +85,7 @@ class GridMap:
         - grid_size (int): Size of one side of the square grid. The grid is assumed to be square.
         - tensors (Optional[dict[str, torch.Tensor]]): Data structure for distinct terrain information.
         - distributions (Optional[dict[str, Normal]]): Distributions for terrain information.
+        - instance_name (Optional[str]): Name of the instance of the grid map containing terrain information.
 
         Returns:
         - A dictionary of torch tensors and distributions representing terrain information.
@@ -110,7 +114,12 @@ class GridMap:
             if distributions is None
             else distributions
         )
-        return tensors, distributions
+        # Raise warning if instance_name is not provided while tensors and distributions are provided
+        if instance_name is None and (tensors is not None or distributions is not None):
+            raise ValueError(
+                "instance_name must be provided when tensors or distributions are provided."
+            )
+        return tensors, distributions, instance_name
 
     def move_to_device(
         self, tensor_dict: dict[str, Union[torch.Tensor, Normal]]
