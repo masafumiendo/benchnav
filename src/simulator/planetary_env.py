@@ -7,11 +7,14 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+import imageio
 import numpy as np
 import torch
 import gymnasium as gym
 import matplotlib.pyplot as plt
-from matplotlib.animation import ArtistAnimation
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+from matplotlib.collections import LineCollection
 
 from src.environments.grid_map import GridMap
 from src.simulator.robot_model import UnicycleModel
@@ -74,10 +77,15 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             self._grid_map, self._model_config, self._dtype, self._device
         )
 
-        # Initialize start and goal positions and robot state
+        # Initialize start and goal positions
         self._start_pos = self._initialize_position(start_pos)
         self._goal_pos = self._initialize_position(goal_pos)
+
+        # Initialize robot state and reward
         self._robot_state = self._initialize_robot_state()
+        self._reward = torch.full(
+            (1,), torch.nan, dtype=self._dtype, device=self._device
+        )
 
         # Set rendering mode and initialize rendering
         if render_mode not in ["human", "rgb_array"]:
@@ -142,12 +150,22 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._start_pos = self._initialize_position(self._start_pos)
         self._goal_pos = self._initialize_position(self._goal_pos)
         self._robot_state = self._initialize_robot_state()
+        self._reward = torch.full(
+            (1,), torch.nan, dtype=self._dtype, device=self._device
+        )
+
+        # Initialize history of robot states and rewards with empty numpy arrays
+        self._history = {"states": np.empty((0, 3)), "rewards": np.empty((0,))}
 
         # Reset rendering with two subplots
         self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
 
         self._ax.set_aspect("equal")
         self._ax.set_title("Terrain Appearance Map")
+
+        # Set colormap and normalization for rendering
+        self._norm = mcolors.Normalize(vmin=0, vmax=1)
+        self._cmap = cm.get_cmap("turbo")
 
         self._rendered_frames = []
 
@@ -167,17 +185,21 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - is_truncated (bool): Whether the episode is truncated (time limit reached or not).
         """
         # Update robot state
-        self._robot_state = self._dynamics.transit(
+        next_state, trav = self._dynamics.transit(
             self._robot_state.unsqueeze(0), action.unsqueeze(0), self._delta_t
-        ).squeeze(0)
+        )
+
+        # Update robot state and reward
+        self._robot_state = next_state.squeeze(0)
+        self._reward = trav
 
         # Update elapsed time
         self._elapsed_time += self._delta_t
 
         # Check if episode is terminated or truncated
-        is_terminated = torch.norm(self._robot_state[:2] - self._goal_pos) < 0.1
+        is_terminated = torch.norm(self._robot_state[:2] - self._goal_pos) < 0.1  # [m]
         is_truncated = self._elapsed_time > self._time_limit
-        return self._robot_state, is_terminated, is_truncated
+        return self._robot_state, self._reward, is_terminated, is_truncated
 
     def collision_check(
         self, states: torch.Tensor, stuck_threshold: float = 0.1
@@ -265,14 +287,25 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - is_collisions (torch.Tensor): Collision states.
         - ax (plt.Axes): Axes to plot the dynamic information.
         """
-        # Current robot state
-        ax.scatter(
-            self._robot_state[0].item(),
-            self._robot_state[1].item(),
-            c="green",
-            marker="o",
-            zorder=150,
+        # Current robot state with reward
+        robot_state = self._robot_state.cpu().numpy()
+        reward = self._reward.cpu().numpy()
+        ax.scatter(robot_state[0], robot_state[1], c="green", marker="o", zorder=150)
+
+        # Append current robot state and reward to history
+        self._history["states"] = np.append(
+            self._history["states"], [robot_state], axis=0
         )
+        self._history["rewards"] = np.append(self._history["rewards"], reward)
+
+        # History of robot states with rewards
+        points = self._history["states"][:, :2]
+        segments = np.array([points[:-1], points[1:]]).transpose(1, 0, 2)
+        lc = LineCollection(
+            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=50
+        )
+        lc.set_array(1 - self._history["rewards"])  # slip = 1 - traversability
+        ax.add_collection(lc)
 
         # Trajectory if provided
         if trajectory is not None:
@@ -305,7 +338,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     top_samples[i, :, 1],
                     c="lightblue",
                     alpha=top_weights[i],
-                    zorder=50,
+                    zorder=75,
                 )
 
     def close(self, file_path: str = None) -> None:
@@ -318,18 +351,18 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         if len(self._rendered_frames) > 0:
             if file_path is not None:
                 file_name = (
-                    f"planetary_env_{self._seed}.gif"
+                    f"{self._grid_map.instance_name}_{self._seed}.gif"
                     if self._seed
-                    else "planetary_env.gif"
+                    else f"{self._grid_map.instance_name}.gif"
                 )
                 file_path = os.path.join(file_path, file_name)
+
                 directory = os.path.dirname(file_path)
                 if directory and not os.path.exists(directory):
                     os.makedirs(directory)
 
-                animation = ArtistAnimation(
-                    self._fig, self._rendered_frames, interval=50, blit=True
-                )
-                animation.save(file_path, writer="imagemagick", fps=10)
+                imageio.mimsave(file_path, self._rendered_frames, fps=10)
 
+        # Close the figure if it exists
+        if hasattr(self, "_fig"):
             plt.close(self._fig)
