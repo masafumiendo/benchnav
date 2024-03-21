@@ -90,6 +90,13 @@ class GridMap:
         Returns:
         - A dictionary of torch tensors and distributions representing terrain information.
         """
+        # Raise warning if instance_name is not provided while tensors and distributions are provided
+        if instance_name is None and (tensors is not None or distributions is not None):
+            raise ValueError(
+                "instance_name must be provided when tensors or distributions are provided."
+            )
+
+        # Initialize tensors and distributions with zero-filled tensors
         tensors = (
             {
                 "heights": torch.zeros((grid_size, grid_size)),
@@ -114,11 +121,6 @@ class GridMap:
             if distributions is None
             else distributions
         )
-        # Raise warning if instance_name is not provided while tensors and distributions are provided
-        if instance_name is None and (tensors is not None or distributions is not None):
-            raise ValueError(
-                "instance_name must be provided when tensors or distributions are provided."
-            )
         return tensors, distributions, instance_name
 
     def move_to_device(
