@@ -222,6 +222,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         trajectory: torch.Tensor,
         top_samples: tuple[torch.Tensor, torch.Tensor],
         is_collisions: torch.Tensor,
+        reference_path: Optional[torch.Tensor] = None,
     ) -> None:
         """
         Render the environment with the trajectory, top samples, and collision states.
@@ -230,6 +231,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - trajectory (torch.Tensor): Trajectory of the robot.
         - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
+        - reference_path (Optional[torch.Tensor]): Reference path of the robot.
         """
         # Plot static information (terrain background maps and robot start and goal positions)
         self._ax.imshow(
@@ -254,6 +256,14 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             marker="x",
             zorder=2,
         )
+        # Plot reference path if provided
+        self._ax.plot(
+            reference_path[:, 0].cpu().numpy(),
+            reference_path[:, 1].cpu().numpy(),
+            c="blue",
+            linestyle="--",
+            zorder=25,
+        ) if reference_path is not None else None
 
         # Plot dynamic trajectory, top samples, and collision states
         self._render_dynamic_information(

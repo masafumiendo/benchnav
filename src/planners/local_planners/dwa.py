@@ -4,7 +4,7 @@ Masafumi Endo, 2024.
 
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional
 
 import torch
 import torch.nn as nn
@@ -28,6 +28,8 @@ class DWA(nn.Module):
         u_max: torch.Tensor,
         a_lim: torch.Tensor,
         delta_t: float,
+        reference_path: Optional[torch.Tensor] = None,
+        lookahead_distance: float = 5.0,
         num_lin_vel: int = 10,
         num_ang_vel: int = 10,
         device=torch.device("cuda"),
@@ -48,6 +50,8 @@ class DWA(nn.Module):
         - u_max (torch.Tensor): Maximum control input.
         - a_lim (torch.Tensor): Maximum acceleration.
         - delta_t (float): Time step for simulation [s].
+        - reference_path (Optional[torch.Tensor]): Reference path for the stage cost.
+        - lookahead_distance (float): Lookahead distance for the sub-goal selection.
         - num_lin_vel (int): Number of linear velocity samples.
         - num_ang_vel (int): Number of angular velocity samples.
         - device (torch.device): Device to run the solver.
@@ -87,6 +91,8 @@ class DWA(nn.Module):
         self._u_max = u_max.clone().detach().to(self._device, self._dtype)
         self._a_lim = a_lim.clone().detach().to(self._device, self._dtype)
         self._delta_t = delta_t
+        self._reference_path = reference_path
+        self._lookahead_distance = lookahead_distance
         self._num_lin_vel = num_lin_vel
         self._num_ang_vel = num_ang_vel
 
@@ -221,15 +227,49 @@ class DWA(nn.Module):
         Returns:
         - cost_batch (torch.Tensor): Total costs.
         """
+        sub_goal_pos = (
+            self._select_sub_goal(state_seq_batch[0, 0, :])
+            if self._reference_path is not None
+            else None
+        )
         cost_batch = torch.zeros(
             state_seq_batch.shape[0], device=self._device, dtype=self._dtype
         )
         for t in range(self._horizon):
-            cost_batch += self._stage_cost(state_seq_batch[:, t, :], actions)
+            cost_batch += self._stage_cost(
+                state_seq_batch[:, t, :], actions, sub_goal_pos
+            )
 
         cost_batch += self._terminal_cost(state_seq_batch[:, -1, :])
 
         return cost_batch
+
+    def _select_sub_goal(self, state: torch.Tensor) -> torch.Tensor:
+        """
+        Select sub-goal position based on the reference path.
+
+        Parameters:
+        - state (torch.Tensor): State of the robot as a tensor (x, y, theta).
+
+        Returns:
+        - sub_goal_pos (torch.Tensor): Sub-goal position.
+        """
+        deltas = self._reference_path - state[:2]
+
+        distances = torch.norm(deltas, dim=1)
+        angles = torch.atan2(deltas[:, 1], deltas[:, 0]) - state[2]
+
+        valid_mask = (angles.abs() < torch.pi / 2) & (
+            distances > self._lookahead_distance
+        )
+
+        if valid_mask.any():
+            min_distance_ahead = distances[valid_mask].min()
+            sub_goal_index = torch.where(distances == min_distance_ahead)[0][0]
+            sub_goal_pos = self._reference_path[sub_goal_index]
+        else:
+            sub_goal_pos = self._reference_path[-1]
+        return sub_goal_pos
 
     def get_top_samples(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """

@@ -158,10 +158,10 @@ def main(device: str):
     astar = AStar(grid_map=grid_map, travs=travs)
 
     # Plan the path
-    total_path = astar.forward(start_pos, goal_pos)
+    reference_path = astar.forward(start_pos, goal_pos)
 
     # Initialize the DWA local planner and the objectives
-    objectives = Objectives(dynamics=dynamics, goal_pos=env._goal_pos, global_path=None)
+    objectives = Objectives(dynamics=dynamics, goal_pos=env._goal_pos)
 
     solver = DWA(
         horizon=50,
@@ -174,6 +174,7 @@ def main(device: str):
         u_max=dynamics.max_action,
         a_lim=torch.tensor([0.5, 0.5]),
         delta_t=delta_t,
+        reference_path=reference_path,
         num_lin_vel=10,
         num_ang_vel=10,
     )
@@ -193,6 +194,7 @@ def main(device: str):
             trajectory=state_seq,
             top_samples=(top_samples, top_weights),
             is_collisions=is_collisions,
+            reference_path=reference_path,
         )
 
         if is_terminated:
