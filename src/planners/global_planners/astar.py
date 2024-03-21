@@ -23,13 +23,18 @@ class AStar(Module):
     - x_limits (tuple[float, float]): x-axis limits of the grid map.
     - y_limits (tuple[float, float]): y-axis limits of the grid map.
     - travs (np.ndarray): Traversability map as a 2D array.
+    - _stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
     - device (str): Device to run the algorithm on.
     - _h (int): Height of the grid map.
     - _w (int): Width of the grid map.
     """
 
     def __init__(
-        self, grid_map: GridMap, travs: torch.Tensor, device: Optional[str] = None
+        self,
+        grid_map: GridMap,
+        travs: torch.Tensor,
+        stuck_threshold: float,
+        device: Optional[str] = None,
     ) -> None:
         """
         Initialize the A* pathfinding algorithm.
@@ -37,7 +42,7 @@ class AStar(Module):
         Parameters:
         - grid_map (GridMap): Grid map object containing terrain information as tensors.
         - travs (torch.Tensor): Predicted traversability map as a 2D tensor.
-        - resolution (Optional[float]): Resolution of each grid in meters.
+        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
         - device (Optional[str]): Device to run the algorithm on.
         """
         super(AStar, self).__init__()
@@ -46,6 +51,7 @@ class AStar(Module):
         self.x_limits = grid_map.x_limits
         self.y_limits = grid_map.y_limits
         self.travs = travs.detach().cpu().numpy()
+        self._stuck_threshold = stuck_threshold
         self.device = (
             device
             if device is not None
@@ -194,20 +200,17 @@ class AStar(Module):
         # Note that the x and y axes are swapped since the array is in the form of [y, x].
         return 0 <= node[0] < self._w and 0 <= node[1] < self._h
 
-    def _check_collision(
-        self, node: tuple[int, int], stuck_threshold: float = 0.1
-    ) -> bool:
+    def _check_collision(self, node: tuple[int, int]) -> bool:
         """
         Check if a position is traversable or not based on the traversability map.
 
         Parameters:
         - node (tuple[int, int]): Position as a grid index.
-        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
 
         Returns:
         - traversable (bool): True if the position is traversable, False otherwise.
         """
-        return self._get_value(node, self.travs) > stuck_threshold
+        return self._get_value(node, self.travs) > self._stuck_threshold
 
     def _reconstruct_path(
         self,

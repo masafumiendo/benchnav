@@ -140,6 +140,7 @@ def main(device: str):
         seed=1,
         delta_t=delta_t,
         time_limit=time_limit,
+        stuck_threshold=0.3,
         device=device,
     )
 
@@ -155,13 +156,15 @@ def main(device: str):
     # Retrieve the traversability map (TODO - this should be done in the environment)
     travs = dynamics._traversability_model._risks
 
-    astar = AStar(grid_map=grid_map, travs=travs)
+    astar = AStar(grid_map=grid_map, travs=travs, stuck_threshold=env.stuck_threshold)
 
     # Plan the path
     reference_path = astar.forward(start_pos, goal_pos)
 
     # Initialize the DWA local planner and the objectives
-    objectives = Objectives(dynamics=dynamics, goal_pos=env._goal_pos)
+    objectives = Objectives(
+        dynamics=dynamics, goal_pos=env._goal_pos, stuck_threshold=env.stuck_threshold
+    )
 
     solver = DWA(
         horizon=50,

@@ -139,6 +139,7 @@ def main(device: str):
         seed=1,
         delta_t=delta_t,
         time_limit=time_limit,
+        stuck_threshold=0.3,
         device=device,
     )
 
@@ -152,7 +153,9 @@ def main(device: str):
     )
 
     # Set the objectives
-    objectives = Objectives(dynamics, goal_pos=env._goal_pos)
+    objectives = Objectives(
+        dynamics, goal_pos=env._goal_pos, stuck_threshold=env.stuck_threshold
+    )
 
     # Set the MPPI
     solver = MPPI(
@@ -166,7 +169,7 @@ def main(device: str):
         u_min=dynamics.min_action,
         u_max=dynamics.max_action,
         sigmas=torch.tensor([0.5, 0.5]),
-        lambda_=1.0,
+        lambda_=0.5,
     )
 
     state = env.reset(seed=0)

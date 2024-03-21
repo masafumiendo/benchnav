@@ -11,23 +11,26 @@ from src.simulator.robot_model import UnicycleModel
 
 
 class Objectives:
-    def __init__(self, dynamics: UnicycleModel, goal_pos: torch.Tensor) -> None:
+    def __init__(
+        self, dynamics: UnicycleModel, goal_pos: torch.Tensor, stuck_threshold: float
+    ) -> None:
         """
         Initialize the objectives for the motion planning problem.
 
         Parameters:
         - dynamics (UnicycleModel): Dynamics model of the robot.
         - goal_pos (torch.Tensor): Goal position of the robot for the stage cost.
+        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
         """
         self._dynamics = dynamics
         self._goal_pos = goal_pos
+        self._stuck_threshold = stuck_threshold
 
     def stage_cost(
         self,
         state: torch.Tensor,
         action: torch.Tensor,
         sub_goal_pos: Optional[torch.Tensor] = None,
-        stuck_threshold: float = 0.1,
     ) -> torch.Tensor:
         """
         Compute stage cost at the given position.
@@ -36,7 +39,6 @@ class Objectives:
         - state (torch.Tensor): State of the robot as batch of position tensors shaped [batch_size, 3].
         - action (torch.Tensor): Action of the robot as batch of control tensors shaped [batch_size, 2].
         - sub_goal_pos (torch.Tensor): Sub-goal position of the robot for the stage cost.
-        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
 
         Returns:
         - cost (torch.Tensor): Stage cost at the given position as batch of cost tensors shaped [batch_size].
@@ -46,7 +48,7 @@ class Objectives:
 
         # Compute collision cost against stuck situations
         trav = self._dynamics.get_traversability(state.unsqueeze(1)).squeeze(1)
-        collision_cost = trav <= stuck_threshold
+        collision_cost = trav <= self._stuck_threshold
 
         return goal_cost + 1e4 * collision_cost
 

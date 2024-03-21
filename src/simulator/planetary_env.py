@@ -30,6 +30,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         goal_pos: Optional[torch.Tensor] = None,
         delta_t: Optional[float] = 0.1,
         time_limit: Optional[int] = 100,
+        stuck_threshold: Optional[float] = 0.1,
         render_mode: Optional[str] = "human",
         seed: Optional[int] = None,
         dtype: Optional[torch.dtype] = torch.float32,
@@ -44,6 +45,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - goal_pos (Optional[torch.Tensor]): Goal position of the agent (x, y) [m].
         - delta_t (Optional[float]): Time step for simulation [s].
         - time_limit (Optional[int]): Time limit for the episode [s].
+        - stuck_threshold (Optional[float]): Threshold for the robot to be considered stuck (low traversability).
         - render_mode (Optional[str]): Rendering mode for the environment.
         - seed (Optional[int]): Random seed for reproducibility.
         - dtype (Optional[torch.dtype]): Data type for torch tensors.
@@ -67,6 +69,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._delta_t = delta_t
         self._time_limit = time_limit
         self._elapsed_time = 0
+
+        # Set stuck threshold
+        self.stuck_threshold = stuck_threshold
 
         # Set grid map
         self._grid_map = grid_map
@@ -103,18 +108,18 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         Returns:
         - pos (torch.Tensor): Initialized position tensor.
         """
-        if pos is not None:
-            return pos.to(self._device, self._dtype)
-        return (
-            torch.randint(
-                0,
-                self._grid_map.grid_size,
-                (2,),
-                dtype=self._dtype,
-                device=self._device,
-            ).float()
-            * self._grid_map.resolution
-        )
+        if pos is None:
+            pos = (
+                torch.randint(
+                    0, self._grid_map.grid_size, (2,), dtype=self._dtype
+                ).float()
+                * self._grid_map.resolution
+            )
+        pos = pos.to(self._device)
+        # Check if the position is traversable
+        if self.collision_check(pos.unsqueeze(0).unsqueeze(0)):
+            raise ValueError("Start or goal position is not traversable.")
+        return pos
 
     def _initialize_robot_state(self) -> torch.Tensor:
         """
@@ -201,21 +206,18 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         is_truncated = self._elapsed_time > self._time_limit
         return self._robot_state, self._reward, is_terminated, is_truncated
 
-    def collision_check(
-        self, states: torch.Tensor, stuck_threshold: float = 0.1
-    ) -> torch.Tensor:
+    def collision_check(self, states: torch.Tensor) -> torch.Tensor:
         """
         Check for collisions at the given position.
 
         Parameters:
         - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
-        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
 
         Returns:
         - is_collisions (torch.Tensor): Collision states at the given position.
         """
         trav = self._dynamics.get_traversability(states)
-        return trav <= stuck_threshold
+        return trav <= self.stuck_threshold
 
     def render(
         self,
