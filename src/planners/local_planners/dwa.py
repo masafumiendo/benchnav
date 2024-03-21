@@ -29,7 +29,7 @@ class DWA(nn.Module):
         a_lim: torch.Tensor,
         delta_t: float,
         reference_path: Optional[torch.Tensor] = None,
-        lookahead_distance: float = 5.0,
+        lookahead_distance: float = 1.0,
         num_lin_vel: int = 10,
         num_ang_vel: int = 10,
         device=torch.device("cuda"),
