@@ -11,6 +11,7 @@ from pqdict import pqdict
 from typing import Optional
 
 from src.environments.grid_map import GridMap
+from src.simulator.robot_model import UnicycleModel
 
 
 class AStar(Module):
@@ -32,7 +33,7 @@ class AStar(Module):
     def __init__(
         self,
         grid_map: GridMap,
-        travs: torch.Tensor,
+        dynamics: UnicycleModel,
         stuck_threshold: float,
         device: Optional[str] = None,
     ) -> None:
@@ -41,7 +42,7 @@ class AStar(Module):
 
         Parameters:
         - grid_map (GridMap): Grid map object containing terrain information as tensors.
-        - travs (torch.Tensor): Predicted traversability map as a 2D tensor.
+        - dynamics (UnicycleModel): Dynamics model of the robot.
         - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
         - device (Optional[str]): Device to run the algorithm on.
         """
@@ -50,7 +51,7 @@ class AStar(Module):
         self.resolution = grid_map.resolution
         self.x_limits = grid_map.x_limits
         self.y_limits = grid_map.y_limits
-        self.travs = travs.detach().cpu().numpy()
+        self.travs = dynamics._traversability_model._risks.detach().cpu().numpy()
         self._stuck_threshold = stuck_threshold
         self.device = (
             device
@@ -66,19 +67,19 @@ class AStar(Module):
         ), "Traversability and height maps must have the same shape."
         self._h, self._w = self.heights.shape
 
-    def reset(self, grid_map: GridMap, travs: torch.Tensor) -> None:
+    def reset(self, grid_map: GridMap, dynamics: UnicycleModel) -> None:
         """
         Reset the traversability and height maps for the A* pathfinding algorithm.
 
         Parameters:
         - grid_map (GridMap): Grid map object containing terrain information as tensors.
-        - travs (torch.Tensor): Traversability map as a 2D tensor.
+        - dynamics (UnicycleModel): Dynamics model of the robot.
         """
         self.heights = grid_map.tensors["heights"].detach().cpu().numpy()
         self.resolution = grid_map.resolution
         self.x_limits = grid_map.x_limits
         self.y_limits = grid_map.y_limits
-        self.travs = travs.detach().cpu().numpy()
+        self.travs = dynamics._traversability_model._risks.detach().cpu().numpy()
 
         # Check if the traversability and height maps have the same shape
         assert (
@@ -99,7 +100,7 @@ class AStar(Module):
         Returns:
         - path (Optional[torch.Tensor]): Path from the start to the goal position as a tensor shaped [num_positions, 2].
         """
-
+        start_pos = start_pos[:2] if start_pos.shape[0] == 3 else start_pos
         # Convert start and goal positions to grid indices
         start_pos = self._pos_to_index(start_pos)
         goal_pos = self._pos_to_index(goal_pos)
@@ -110,9 +111,8 @@ class AStar(Module):
         ):
             raise ValueError("Start or goal position is out of bounds.")
 
-        # Check if the start and goal positions are traversable
-        if not self._check_collision(start_pos) or not self._check_collision(goal_pos):
-            raise ValueError("Start or goal position is not traversable.")
+        if not self._check_collision(goal_pos):
+            raise ValueError("Goal position is not traversable.")
 
         # Initialize the open and closed sets
         open_set = pqdict({start_pos: 0})

@@ -28,7 +28,6 @@ class DWA(nn.Module):
         u_max: torch.Tensor,
         a_lim: torch.Tensor,
         delta_t: float,
-        reference_path: Optional[torch.Tensor] = None,
         lookahead_distance: float = 1.0,
         num_lin_vel: int = 10,
         num_ang_vel: int = 10,
@@ -50,7 +49,6 @@ class DWA(nn.Module):
         - u_max (torch.Tensor): Maximum control input.
         - a_lim (torch.Tensor): Maximum acceleration.
         - delta_t (float): Time step for simulation [s].
-        - reference_path (Optional[torch.Tensor]): Reference path for the stage cost.
         - lookahead_distance (float): Lookahead distance for the sub-goal selection.
         - num_lin_vel (int): Number of linear velocity samples.
         - num_ang_vel (int): Number of angular velocity samples.
@@ -91,7 +89,6 @@ class DWA(nn.Module):
         self._u_max = u_max.clone().detach().to(self._device, self._dtype)
         self._a_lim = a_lim.clone().detach().to(self._device, self._dtype)
         self._delta_t = delta_t
-        self._reference_path = reference_path
         self._lookahead_distance = lookahead_distance
         self._num_lin_vel = num_lin_vel
         self._num_ang_vel = num_ang_vel
@@ -112,6 +109,8 @@ class DWA(nn.Module):
             device=self._device,
             dtype=self._dtype,
         )
+
+        self._reference_path = None
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -151,6 +150,19 @@ class DWA(nn.Module):
         self._weights = torch.softmax(-cost_batch, dim=0)
 
         return optimal_action_seq, optimal_state_seq
+
+    def update_reference_path(self, reference_path: torch.Tensor) -> None:
+        """
+        Update the reference path if available.
+
+        Parameters:
+        - reference_path (torch.Tensor): Reference path for the stage cost.
+        """
+        if reference_path is not None:
+            assert (
+                reference_path.shape[1] == 2
+            ), "reference_path must be a tensor of shape (num_positions, 2)"
+            self._reference_path = reference_path.to(self._device, self._dtype)
 
     def _generate_actions(self) -> torch.Tensor:
         """

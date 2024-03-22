@@ -153,14 +153,6 @@ def main(device: str):
         grid_map=grid_map, model_config=model_config, device=device
     )
 
-    # Retrieve the traversability map (TODO - this should be done in the environment)
-    travs = dynamics._traversability_model._risks
-
-    astar = AStar(grid_map=grid_map, travs=travs, stuck_threshold=env.stuck_threshold)
-
-    # Plan the path
-    reference_path = astar.forward(start_pos, goal_pos)
-
     # Initialize the DWA local planner and the objectives
     objectives = Objectives(
         dynamics=dynamics, goal_pos=env._goal_pos, stuck_threshold=env.stuck_threshold
@@ -177,14 +169,20 @@ def main(device: str):
         u_max=dynamics.max_action,
         a_lim=torch.tensor([0.5, 0.5]),
         delta_t=delta_t,
-        reference_path=reference_path,
         num_lin_vel=10,
         num_ang_vel=10,
+    )
+
+    # Initialize the A* global planner
+    astar = AStar(
+        grid_map=grid_map, dynamics=dynamics, stuck_threshold=env.stuck_threshold
     )
 
     state = env.reset(seed=0)
     for _ in range(int(time_limit / delta_t)):
         with torch.no_grad():
+            reference_path = astar.forward(state, goal_pos)
+            solver.update_reference_path(reference_path)
             action_seq, state_seq = solver.forward(state=state)
 
         state, reward, is_terminated, is_truncated = env.step(action_seq[0, :])
