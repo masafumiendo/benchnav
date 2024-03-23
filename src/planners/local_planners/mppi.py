@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 from torch.distributions.multivariate_normal import MultivariateNormal
 
+from src.simulator.robot_model import UnicycleModel
+
 
 class MPPI(nn.Module):
     """
@@ -23,11 +25,9 @@ class MPPI(nn.Module):
         num_samples: int,
         dim_state: int,
         dim_control: int,
-        dynamics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        dynamics: UnicycleModel,
         stage_cost: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         terminal_cost: Callable[[torch.Tensor], torch.Tensor],
-        u_min: torch.Tensor,
-        u_max: torch.Tensor,
         sigmas: torch.Tensor,
         lambda_: float,
         device=torch.device("cuda"),
@@ -43,8 +43,6 @@ class MPPI(nn.Module):
         :param dynamics: Dynamics model.
         :param stage_cost: Stage cost.
         :param terminal_cost: Terminal cost.
-        :param u_min: Minimum control.
-        :param u_max: Maximum control.
         :param sigmas: Noise standard deviation for each control dimension.
         :param lambda_: temperature parameter.
         :param device: Device to run the solver.
@@ -58,8 +56,8 @@ class MPPI(nn.Module):
         torch.manual_seed(seed)
 
         # check dimensions
-        assert u_min.shape == (dim_control,)
-        assert u_max.shape == (dim_control,)
+        assert dynamics.min_action.shape == (dim_control,)
+        assert dynamics.max_action.shape == (dim_control,)
         assert sigmas.shape == (dim_control,)
         # assert num_samples % batch_size == 0 and num_samples >= batch_size
 
@@ -78,8 +76,12 @@ class MPPI(nn.Module):
         self._dynamics = dynamics
         self._stage_cost = stage_cost
         self._terminal_cost = terminal_cost
-        self._u_min = u_min.clone().detach().to(self._device, self._dtype)
-        self._u_max = u_max.clone().detach().to(self._device, self._dtype)
+        self._u_min = (
+            self._dynamics.min_action.clone().detach().to(self._device, self._dtype)
+        )
+        self._u_max = (
+            self._dynamics.max_action.clone().detach().to(self._device, self._dtype)
+        )
         self._sigmas = sigmas.clone().detach().to(self._device, self._dtype)
         self._lambda = lambda_
 
@@ -154,7 +156,7 @@ class MPPI(nn.Module):
         self._state_seq_batch[:, 0, :] = state.repeat(self._num_samples, 1)
 
         for t in range(self._horizon):
-            self._state_seq_batch[:, t + 1, :] = self._dynamics(
+            self._state_seq_batch[:, t + 1, :] = self._dynamics.transit(
                 self._state_seq_batch[:, t, :], self._perturbed_action_seqs[:, t, :]
             )
 
@@ -203,7 +205,7 @@ class MPPI(nn.Module):
         optimal_state_seq[:, 0, :] = state
         expanded_optimal_action_seq = optimal_action_seq.repeat(1, 1, 1)
         for t in range(self._horizon):
-            optimal_state_seq[:, t + 1, :] = self._dynamics(
+            optimal_state_seq[:, t + 1, :] = self._dynamics.transit(
                 optimal_state_seq[:, t, :], expanded_optimal_action_seq[:, t, :]
             )
 

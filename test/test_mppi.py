@@ -163,11 +163,9 @@ def main(device: str):
         num_samples=5000,
         dim_state=3,
         dim_control=2,
-        dynamics=dynamics.transit,
+        dynamics=dynamics,
         stage_cost=objectives.stage_cost,
         terminal_cost=objectives.terminal_cost,
-        u_min=dynamics.min_action,
-        u_max=dynamics.max_action,
         sigmas=torch.tensor([0.5, 0.5]),
         lambda_=0.5,
     )
