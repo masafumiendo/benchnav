@@ -12,6 +12,7 @@ from typing import Optional
 
 from src.environments.grid_map import GridMap
 from src.simulator.robot_model import UnicycleModel
+from src.utils.utils import set_randomness
 
 
 class Tree:
@@ -101,6 +102,7 @@ class RRTStar(Module):
     def __init__(
         self,
         grid_map: GridMap,
+        goal_pos: torch.Tensor,
         dynamics: UnicycleModel,
         stuck_threshold: float,
         max_iterations: int = 1000,
@@ -108,21 +110,28 @@ class RRTStar(Module):
         goal_sample_rate: float = 0.1,
         search_radius: float = 5,
         device: Optional[str] = None,
+        seed: int = 42,
     ):
         """
         Initialize the RRT* pathfinding algorithm.
 
         Parameters:
         - grid_map (GridMap): Grid map object containing terrain information as tensors.
-        - dynamics (UnicycleModel): Dynamics model of the robot.
+        - goal_pos (torch.Tensor): Goal position of the robot as a tensor shape (2,).
+        - dynamics (UnicycleModel): Unicycle model for the robot.
         - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
         - max_iterations (int): Maximum number of iterations for the algorithm.
         - delta_distance (float): Distance between nodes in the tree.
         - goal_sample_rate (float): Probability of sampling the goal position instead of a random position.
         - search_radius (float): Radius for searching the nearest node in the tree.
         - device (Optional[str]): Device to run the algorithm on.
+        - seed (int): Seed for numpy and torch random number generators.
         """
         super(RRTStar, self).__init__()
+
+        # Set the random seed
+        set_randomness(seed)
+
         self.heights = grid_map.tensors["heights"].detach().cpu().numpy()
         self.resolution = grid_map.resolution
         self.x_limits = grid_map.x_limits
@@ -151,26 +160,26 @@ class RRTStar(Module):
 
         self.tree = None
 
-    def forward(
-        self, start_pos: torch.Tensor, goal_pos: torch.Tensor
-    ) -> Optional[torch.Tensor]:
+        # Set the goal position
+        self._goal_node = goal_pos.detach().cpu().numpy()
+        self._goal_node_indices = []
+
+    def forward(self, state: torch.Tensor) -> Optional[torch.Tensor]:
         """
         Find the path from the start position to the goal position using the RRT* algorithm.
 
         Parameters:
-        - start_pos (torch.Tensor): Start position of the robot.
-        - goal_pos (torch.Tensor): Goal position of the robot.
+        - state (torch.Tensor): State of the robot as a tensor shape (3,).
 
         Returns:
         - Optional[torch.Tensor]: Path from the start position to the goal position.
         """
-        start_pos = start_pos[:2] if start_pos.shape[0] == 3 else start_pos
-        start_node = start_pos.detach().cpu().numpy()
-        goal_node = goal_pos.detach().cpu().numpy()
+        state = state[:2] if state.shape[0] == 3 else state
+        start_node = state.detach().cpu().numpy()
 
         # Check if the start and goal positions are within the grid map
         if not self._is_within_bounds(start_node) or not self._is_within_bounds(
-            goal_node
+            self._goal_node
         ):
             raise ValueError("Start or goal position is out of bounds.")
 
@@ -180,7 +189,7 @@ class RRTStar(Module):
 
         for _ in range(self._max_iterations):
             # Sample a position to expand the tree
-            sample_pos = self._sample_position(goal_node)
+            sample_pos = self._sample_position()
             nearest_node = self._nearest_node(sample_pos)
             new_node = self._steer(nearest_node, sample_pos)
 
@@ -198,24 +207,21 @@ class RRTStar(Module):
                 self._rewire(near_node_indices, new_node_index)
 
         # Reconstruct the path from the goal to the start position
-        goal_reached, goal_node_index = self._is_goal_reached(goal_node)
+        goal_reached, self._goal_node_indices = self._is_goal_reached()
         if goal_reached:
-            return self._reconstruct_path(goal_node_index)
+            return self._reconstruct_path(self._goal_node_indices[0])
         else:
             return None
 
-    def _sample_position(self, goal_pos: np.ndarray) -> np.ndarray:
+    def _sample_position(self) -> np.ndarray:
         """
         Sample a random position within the bounds of the grid map.
 
-        Parameters:
-        - goal_pos (np.ndarray): Goal position of the robot.
-
         Returns:
-        - np.ndarray: Random position.
+        - np.ndarray: Random position or the goal position.
         """
         if np.random.rand() < self._goal_sample_rate:
-            return goal_pos
+            return self._goal_node
         else:
             return np.random.uniform(
                 [self.x_limits[0], self.y_limits[0]],
@@ -438,31 +444,33 @@ class RRTStar(Module):
         return np.array(indices)
 
     def _is_goal_reached(
-        self, goal_pos: np.ndarray, goal_threshold: float = 0.1
-    ) -> tuple[bool, Optional[int]]:
+        self, goal_threshold: float = 0.1
+    ) -> tuple[bool, list[int]]:
         """
         Check if the goal position is reached from the tree within a threshold.
 
         Parameters:
-        - goal_pos (np.ndarray): Goal position of the robot.
         - goal_threshold (float): Threshold for the goal position.
 
         Returns:
-        - tuple[bool, Optional[int]]: Tuple of whether the goal is reached and the index of the closest node to the goal.
+        - tuple[bool, list[int]]: Tuple containing a boolean indicating if the goal is reached, 
+                                            and the goal node index.
         """
-        near_goal_indices = self.tree.kd_tree.query_ball_point(goal_pos, goal_threshold)
+        near_goal_indices = self.tree.kd_tree.query_ball_point(
+            self._goal_node, goal_threshold
+        )
 
-        min_cost = np.inf
-        goal_node_index = None
+        goal_node_indices_costs = []
         for index in near_goal_indices:
-            if (
-                not self._is_collision(self.tree.nodes[index], goal_pos)
-                and self.tree.costs[index] < min_cost
-            ):
-                min_cost = self.tree.costs[index]
-                goal_node_index = index
+            if not self._is_collision(self.tree.nodes[index], self._goal_node):
+                goal_node_indices_costs.append((index, self.tree.costs[index]))
 
-        return goal_node_index is not None, goal_node_index
+        if len(goal_node_indices_costs) == 0:
+            return False, []
+        
+        goal_node_indices_costs.sort(key=lambda x: x[1])
+        goal_node_indices = [node[0] for node in goal_node_indices_costs]
+        return True, goal_node_indices
 
     def _reconstruct_path(self, goal_node_index: int) -> torch.Tensor:
         """
