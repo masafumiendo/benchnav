@@ -33,6 +33,7 @@ class AStar(Module):
     def __init__(
         self,
         grid_map: GridMap,
+        goal_pos: torch.Tensor,
         dynamics: UnicycleModel,
         stuck_threshold: float,
         device: Optional[str] = None,
@@ -42,6 +43,7 @@ class AStar(Module):
 
         Parameters:
         - grid_map (GridMap): Grid map object containing terrain information as tensors.
+        - goal_pos (torch.Tensor): Goal position of the robot as a tensor shaped [2].
         - dynamics (UnicycleModel): Dynamics model of the robot.
         - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
         - device (Optional[str]): Device to run the algorithm on.
@@ -67,44 +69,43 @@ class AStar(Module):
         ), "Traversability and height maps must have the same shape."
         self._h, self._w = self.heights.shape
 
-    def forward(
-        self, start_pos: torch.Tensor, goal_pos: torch.Tensor
-    ) -> Optional[torch.Tensor]:
+        # Set the goal position
+        self._goal_node = self._pos_to_index(goal_pos)
+
+    def forward(self, state: torch.Tensor) -> Optional[torch.Tensor]:
         """
         Compute the A* pathfinding algorithm.
 
         Parameters:
-        - start_pos (torch.Tensor): Start position of the robot as a tensor shaped [2].
-        - goal_pos (torch.Tensor): Goal position of the robot as a tensor shaped [2].
+        - state (torch.Tensor): State of the robot as a tensor shaped [3].
 
         Returns:
         - path (Optional[torch.Tensor]): Path from the start to the goal position as a tensor shaped [num_positions, 2].
         """
-        start_pos = start_pos[:2] if start_pos.shape[0] == 3 else start_pos
+        state = state[:2] if state.shape[0] == 3 else state
         # Convert start and goal positions to grid indices
-        start_pos = self._pos_to_index(start_pos)
-        goal_pos = self._pos_to_index(goal_pos)
+        start_node = self._pos_to_index(state)
 
         # Check if the start and goal positions are within bounds
-        if not self._is_within_bounds(start_pos) or not self._is_within_bounds(
-            goal_pos
+        if not self._is_within_bounds(start_node) or not self._is_within_bounds(
+            self._goal_node
         ):
             raise ValueError("Start or goal position is out of bounds.")
 
-        if self._is_collision(goal_pos):
+        if self._is_collision(self._goal_node):
             raise ValueError("Goal position is not traversable.")
 
         # Initialize the open and closed sets
-        open_set = pqdict({start_pos: 0})
+        open_set = pqdict({start_node: 0})
         came_from = {}
-        g_score = {start_pos: 0}
-        f_score = {start_pos: self._distance(start_pos, goal_pos)}
+        g_score = {start_node: 0}
+        f_score = {start_node: self._distance(start_node, self._goal_node)}
 
         # Search for the path
         while open_set:
             current = open_set.pop()
 
-            if current == goal_pos:
+            if current == self._goal_node:
                 return self._reconstruct_path(came_from, current)
 
             for neighbor in self._get_neighbors(current):
@@ -115,7 +116,7 @@ class AStar(Module):
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
                     f_score[neighbor] = tentative_g_score + self._distance(
-                        neighbor, goal_pos
+                        neighbor, self._goal_node
                     )
                     if neighbor not in open_set:
                         open_set[neighbor] = f_score[neighbor]

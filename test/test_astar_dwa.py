@@ -173,13 +173,16 @@ def main(device: str):
 
     # Initialize the A* global planner
     astar = AStar(
-        grid_map=grid_map, dynamics=dynamics, stuck_threshold=env.stuck_threshold
+        grid_map=grid_map,
+        goal_pos=goal_pos,
+        dynamics=dynamics,
+        stuck_threshold=env.stuck_threshold,
     )
 
     state = env.reset(seed=0)
     for _ in range(int(time_limit / delta_t)):
         with torch.no_grad():
-            reference_path = astar.forward(state, goal_pos)
+            reference_path = astar.forward(state=state)
             solver.update_reference_path(reference_path)
             action_seq, state_seq = solver.forward(state=state)
 
