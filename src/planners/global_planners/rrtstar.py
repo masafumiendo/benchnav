@@ -104,9 +104,9 @@ class RRTStar(Module):
         dynamics: UnicycleModel,
         stuck_threshold: float,
         max_iterations: int = 1000,
-        delta_distance: float = 0.5,
+        delta_distance: float = 2.5,
         goal_sample_rate: float = 0.1,
-        search_radius: float = 10,
+        search_radius: float = 5,
         device: Optional[str] = None,
     ):
         """
@@ -358,23 +358,14 @@ class RRTStar(Module):
         Returns:
         - float: Total 3D distance between the two nodes.
         """
-        num_samples = self._get_interpolation_samples(node1, node2)
-        poses = np.linspace(node1, node2, num=num_samples)
-        indices = np.floor(
-            (poses - np.array([self.x_limits[0], self.y_limits[0]])) / self.resolution
-        ).astype(int)
+        pose_indices = self._edge_to_pose_indices(node1, node2)
+        heights = self.heights[pose_indices[:, 1], pose_indices[:, 0]]
+        vertical_distances = np.abs(np.diff(heights))
 
-        # Retrieve the height values at the grid indices
-        indices[:, 0] = np.clip(indices[:, 0], 0, self.heights.shape[0] - 1)
-        indices[:, 1] = np.clip(indices[:, 1], 0, self.heights.shape[1] - 1)
-        sampled_heights = self.heights[indices[:, 0], indices[:, 1]]
+        dx = np.diff(pose_indices[:, 0]) * self.resolution
+        dy = np.diff(pose_indices[:, 1]) * self.resolution
 
-        # Calculate the vertical and horizontal distances between the sampled heights
-        vertical_distances = np.abs(np.diff(sampled_heights))
-        horizontal_distances = np.linalg.norm(np.diff(poses, axis=0), axis=1)
-
-        segment_distances = np.sqrt(horizontal_distances ** 2 + vertical_distances ** 2)
-        return np.sum(segment_distances)
+        return np.sum(np.sqrt(dx ** 2 + dy ** 2 + vertical_distances ** 2))
 
     def _is_collision(self, node1: np.ndarray, node2: np.ndarray) -> bool:
         """
@@ -387,30 +378,64 @@ class RRTStar(Module):
         Returns:
         - bool: True if the robot is stuck along the path, False otherwise.
         """
-        # Interpolate between the nearest and new nodes
-        num_samples = self._get_interpolation_samples(node1, node2)
-        poses = np.linspace(node1, node2, num=num_samples)
-        # Convert positions to grid indices
-        indices = np.floor(
-            (poses - np.array([self.x_limits[0], self.y_limits[0]])) / self.resolution
-        ).astype(int)
-        # Check for collisions along the path
-        return np.any(self.travs[indices[:, 0], indices[:, 1]] <= self._stuck_threshold)
+        pose_indices = self._edge_to_pose_indices(node1, node2)
+        return np.any(
+            self.travs[pose_indices[:, 1], pose_indices[:, 0]] <= self._stuck_threshold
+        )
 
-    def _get_interpolation_samples(self, node1: np.ndarray, node2: np.ndarray) -> int:
+    def _edge_to_pose_indices(self, node1: np.ndarray, node2: np.ndarray) -> np.ndarray:
         """
-        Get the number of samples to interpolate between two nodes.
+        Convert the edge between two nodes to a list of grid indices.
 
         Parameters:
-        - node1 (np.ndarray): Starting node of the path.
-        - node2 (np.ndarray): Ending node of the path.
+        - node1 (np.ndarray): Starting node.
+        - node2 (np.ndarray): Ending node.
 
         Returns:
-        - int: Number of samples to interpolate between the two nodes.
+        - np.ndarray: List of grid indices along the edge.
         """
-        distance = np.linalg.norm(node2 - node1)
-        num_samples = np.ceil(distance / self.resolution)
-        return max(int(num_samples), 2)
+        x0, y0 = np.floor(
+            (node1 - np.array([self.x_limits[0], self.y_limits[0]])) / self.resolution
+        ).astype(int)
+        x1, y1 = np.floor(
+            (node2 - np.array([self.x_limits[0], self.y_limits[0]])) / self.resolution
+        ).astype(int)
+
+        return self._bresenham_line(x0, y0, x1, y1)
+
+    def _bresenham_line(self, x0: int, y0: int, x1: int, y1: int) -> np.ndarray:
+        """
+        Generate a list of grid indices along the line between two points.
+
+        Parameters:
+        - x0 (int): x-coordinate of the starting point.
+        - y0 (int): y-coordinate of the starting point.
+        - x1 (int): x-coordinate of the ending point.
+        - y1 (int): y-coordinate of the ending point.
+
+        Returns:
+        - np.ndarray: List of grid indices along the line.
+        """
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+
+        indices = []
+        while True:
+            indices.append((x0, y0))
+            if x0 == x1 and y0 == y1:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x0 += sx
+            if e2 < dx:
+                err += dx
+                y0 += sy
+
+        return np.array(indices)
 
     def _is_goal_reached(
         self, goal_pos: np.ndarray, goal_threshold: float = 0.1
@@ -427,11 +452,17 @@ class RRTStar(Module):
         """
         near_goal_indices = self.tree.kd_tree.query_ball_point(goal_pos, goal_threshold)
 
+        min_cost = np.inf
+        goal_node_index = None
         for index in near_goal_indices:
-            if not self._is_collision(self.tree.nodes[index], goal_pos):
-                return True, index
+            if (
+                not self._is_collision(self.tree.nodes[index], goal_pos)
+                and self.tree.costs[index] < min_cost
+            ):
+                min_cost = self.tree.costs[index]
+                goal_node_index = index
 
-        return False, None
+        return goal_node_index is not None, goal_node_index
 
     def _reconstruct_path(self, goal_node_index: int) -> torch.Tensor:
         """
