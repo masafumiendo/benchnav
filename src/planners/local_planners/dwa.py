@@ -9,6 +9,8 @@ from typing import Callable, Tuple, Optional
 import torch
 import torch.nn as nn
 
+from src.simulator.robot_model import UnicycleModel
+
 
 class DWA(nn.Module):
     """
@@ -21,11 +23,9 @@ class DWA(nn.Module):
         horizon: int,
         dim_state: int,
         dim_control: int,
-        dynamics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        dynamics: UnicycleModel,
         stage_cost: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         terminal_cost: Callable[[torch.Tensor], torch.Tensor],
-        u_min: torch.Tensor,
-        u_max: torch.Tensor,
         a_lim: torch.Tensor,
         delta_t: float,
         lookahead_distance: float = 1.0,
@@ -42,11 +42,9 @@ class DWA(nn.Module):
         - horizon (int): Predictive horizon length.
         - dim_state (int): Dimension of state.
         - dim_control (int): Dimension of control.
-        - dynamics (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): Dynamics model.
+        - dynamics (UnicycleModel): Dynamics model.
         - stage_cost (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): Stage cost.
         - terminal_cost (Callable[[torch.Tensor], torch.Tensor]): Terminal cost.
-        - u_min (torch.Tensor): Minimum control input.
-        - u_max (torch.Tensor): Maximum control input.
         - a_lim (torch.Tensor): Maximum acceleration.
         - delta_t (float): Time step for simulation [s].
         - lookahead_distance (float): Lookahead distance for the sub-goal selection.
@@ -62,15 +60,15 @@ class DWA(nn.Module):
         torch.manual_seed(seed)
 
         # check dimensions
-        assert u_min.shape == (
+        assert dynamics.min_action.shape == (
             dim_control,
-        ), "u_min must be a tensor of shape (dim_control,)"
-        assert u_max.shape == (
+        ), "minimum actions must be a tensor of shape (dim_control,)"
+        assert dynamics.max_action.shape == (
             dim_control,
-        ), "u_max must be a tensor of shape (dim_control,)"
+        ), "maximum actions must be a tensor of shape (dim_control,)"
         assert a_lim.shape == (
             dim_control,
-        ), "a_lim must be a tensor of shape (dim_control,)"
+        ), "acceleration limits must be a tensor of shape (dim_control,)"
 
         # device and dtype
         if torch.cuda.is_available() and device == torch.device("cuda"):
@@ -85,8 +83,12 @@ class DWA(nn.Module):
         self._dynamics = dynamics
         self._stage_cost = stage_cost
         self._terminal_cost = terminal_cost
-        self._u_min = u_min.clone().detach().to(self._device, self._dtype)
-        self._u_max = u_max.clone().detach().to(self._device, self._dtype)
+        self._u_min = (
+            self._dynamics.min_action.clone().detach().to(self._device, self._dtype)
+        )
+        self._u_max = (
+            self._dynamics.max_action.clone().detach().to(self._device, self._dtype)
+        )
         self._a_lim = a_lim.clone().detach().to(self._device, self._dtype)
         self._delta_t = delta_t
         self._lookahead_distance = lookahead_distance
@@ -221,7 +223,7 @@ class DWA(nn.Module):
         )
         state_seq_batch[:, 0, :] = state.unsqueeze(0).repeat(actions.shape[0], 1)
         for t in range(self._horizon):
-            state_seq_batch[:, t + 1, :] = self._dynamics(
+            state_seq_batch[:, t + 1, :] = self._dynamics.transit(
                 state_seq_batch[:, t, :], actions
             )
         return state_seq_batch

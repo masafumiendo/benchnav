@@ -56,10 +56,15 @@ class MPPI(nn.Module):
         torch.manual_seed(seed)
 
         # check dimensions
-        assert dynamics.min_action.shape == (dim_control,)
-        assert dynamics.max_action.shape == (dim_control,)
-        assert sigmas.shape == (dim_control,)
-        # assert num_samples % batch_size == 0 and num_samples >= batch_size
+        assert dynamics.min_action.shape == (
+            dim_control,
+        ), "minimum actions must be a tensor of shape (dim_control,)"
+        assert dynamics.max_action.shape == (
+            dim_control,
+        ), "maximum actions must be a tensor of shape (dim_control,)"
+        assert sigmas.shape == (
+            dim_control,
+        ), "sigmas must be a tensor of shape (dim_control,)"
 
         # device and dtype
         if torch.cuda.is_available() and device == torch.device("cuda"):
