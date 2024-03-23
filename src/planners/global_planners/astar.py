@@ -67,26 +67,6 @@ class AStar(Module):
         ), "Traversability and height maps must have the same shape."
         self._h, self._w = self.heights.shape
 
-    def reset(self, grid_map: GridMap, dynamics: UnicycleModel) -> None:
-        """
-        Reset the traversability and height maps for the A* pathfinding algorithm.
-
-        Parameters:
-        - grid_map (GridMap): Grid map object containing terrain information as tensors.
-        - dynamics (UnicycleModel): Dynamics model of the robot.
-        """
-        self.heights = grid_map.tensors["heights"].detach().cpu().numpy()
-        self.resolution = grid_map.resolution
-        self.x_limits = grid_map.x_limits
-        self.y_limits = grid_map.y_limits
-        self.travs = dynamics._traversability_model._risks.detach().cpu().numpy()
-
-        # Check if the traversability and height maps have the same shape
-        assert (
-            self.travs.shape == self.heights.shape
-        ), "Traversability and height maps must have the same shape."
-        self._h, self._w = self.heights.shape
-
     def forward(
         self, start_pos: torch.Tensor, goal_pos: torch.Tensor
     ) -> Optional[torch.Tensor]:
@@ -111,7 +91,7 @@ class AStar(Module):
         ):
             raise ValueError("Start or goal position is out of bounds.")
 
-        if not self._check_collision(goal_pos):
+        if self._is_collision(goal_pos):
             raise ValueError("Goal position is not traversable.")
 
         # Initialize the open and closed sets
@@ -183,7 +163,7 @@ class AStar(Module):
         neighbors = []
         for dx, dy in directions:
             neighbor = (node[0] + dx, node[1] + dy)
-            if self._is_within_bounds(neighbor) and self._check_collision(neighbor):
+            if self._is_within_bounds(neighbor) and not self._is_collision(neighbor):
                 neighbors.append(neighbor)
         return neighbors
 
@@ -200,7 +180,7 @@ class AStar(Module):
         # Note that the x and y axes are swapped since the array is in the form of [y, x].
         return 0 <= node[0] < self._w and 0 <= node[1] < self._h
 
-    def _check_collision(self, node: tuple[int, int]) -> bool:
+    def _is_collision(self, node: tuple[int, int]) -> bool:
         """
         Check if a position is traversable or not based on the traversability map.
 
@@ -208,9 +188,9 @@ class AStar(Module):
         - node (tuple[int, int]): Position as a grid index.
 
         Returns:
-        - traversable (bool): True if the position is traversable, False otherwise.
+        - traversable (bool): True if the position is in collision, False otherwise.
         """
-        return self._get_value(node, self.travs) > self._stuck_threshold
+        return self._get_value(node, self.travs) <= self._stuck_threshold
 
     def _reconstruct_path(
         self,
