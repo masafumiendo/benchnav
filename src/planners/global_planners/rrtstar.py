@@ -16,25 +16,40 @@ from src.utils.utils import set_randomness
 
 
 class Tree:
-    def __init__(self, dim: int = 2) -> None:
+    def __init__(self, dim: int = 2, initial_capacity: int = 1000) -> None:
         """
         Initialize the tree data structure.
 
         Parameters:
         - dim (int): Dimension of the tree.
+        - initial_capacity (int): Initial capacity of the tree.
 
         Attributes:
         - nodes (np.ndarray): Nodes in the tree as a 2D array.
         - nodes_count (int): Number of nodes in the tree.
-        - edges (dict[int, int]): Edges in the tree.
-        - costs (dict[int, float]): Costs of the nodes in the tree.
+        - edges (np.ndarray): Edges connecting the nodes in the tree.
+        - costs (np.ndarray): Costs of the nodes in the tree.
         - kd_tree (KDTree): KDTree for fast nearest neighbor search.
         """
-        self.nodes: np.ndarray = np.zeros((0, dim))
-        self.nodes_count: int = 0
-        self.edges: dict[int, int] = {}  # {child_index: parent_index}
-        self.costs: dict[int, float] = {0: 0}  # {child_index: cost}
-        self.kd_tree: KDTree = KDTree(self.nodes)
+        self._dim = dim
+        self.nodes = np.zeros((initial_capacity, dim))
+        self.nodes_count = 0
+        self.edges = -np.ones(initial_capacity, dtype=int)
+        self.costs = np.full(initial_capacity, np.inf)
+        self.costs[0] = 0
+        self.kd_tree = KDTree(np.empty((0, dim)))
+
+    def _ensure_capacity(self) -> None:
+        """
+        Ensure the capacity of the tree is sufficient.
+        """
+        if self.nodes_count + 1 > self.nodes.shape[0]:
+            capacity = max(self.nodes_count + 1, int(self.nodes.shape[0] * 1.5))
+            self.nodes = np.resize(self.nodes, (capacity, self._dim))
+            self.edges = np.resize(self.edges, capacity)
+            self.edges[self.nodes_count :] = -1
+            self.costs = np.resize(self.costs, capacity)
+            self.costs[self.nodes_count :] = np.inf
 
     def connect_nodes(self, parent_index: int, child_pos: np.ndarray) -> None:
         """
@@ -54,9 +69,10 @@ class Tree:
         Parameters:
         - node (np.ndarray): Node to add.
         """
-        self.nodes = np.vstack((self.nodes, node))
+        self._ensure_capacity()
+        self.nodes[self.nodes_count, :] = node
         self.nodes_count += 1
-        self.kd_tree = KDTree(self.nodes)
+        self.kd_tree = KDTree(self.nodes[: self.nodes_count, :])
 
     def add_edge(self, parent_index: int, child_index) -> None:
         """
@@ -193,8 +209,8 @@ class RRTStar(Module):
             nearest_node = self._nearest_node(sample_pos)
             new_node = self._steer(nearest_node, sample_pos)
 
-            if self._is_within_bounds(new_node) and not self._is_collision(
-                nearest_node, new_node
+            if self._is_within_bounds(new_node) and not self._is_collisions(
+                nearest_node[np.newaxis, :], new_node[np.newaxis, :]
             ):
                 # Connect the new node to the tree
                 near_node_indices = self._near_node_indices(new_node)
@@ -272,28 +288,25 @@ class RRTStar(Module):
         Returns:
         - tuple[int, float]: Index of the parent node and the cost of the new node.
         """
-        if len(near_node_indices) == 0:
+        if near_node_indices.size == 0:
             return 0, 0
 
-        valid_indices = [
-            i
-            for i in near_node_indices
-            if not self._is_collision(self.tree.nodes[i], new_node)
-        ]
+        near_nodes = self.tree.nodes[near_node_indices]
+        new_node = new_node[np.newaxis, :]
 
-        if len(valid_indices) == 0:
+        # Check for collisions along the paths from the nearest nodes to the new node
+        is_collisions = self._is_collisions(near_nodes, new_node)
+        valid_indices = near_node_indices[~is_collisions]
+        if valid_indices.size == 0:
             return 0, 0
 
-        costs = np.array(
-            [
-                self.tree.costs[i] + self._distance(self.tree.nodes[i], new_node)
-                for i in valid_indices
-            ]
-        )
+        # Calculate the total costs for the valid indices
+        distances = self._distances(self.tree.nodes[valid_indices], new_node)
+        total_costs = self.tree.costs[valid_indices] + distances
 
         # Choose the parent node with the minimum cost
-        min_cost_index = np.argmin(costs)
-        return valid_indices[min_cost_index], costs[min_cost_index]
+        min_cost_index = np.argmin(total_costs)
+        return valid_indices[min_cost_index], total_costs[min_cost_index]
 
     def _steer(self, nearest_node: np.ndarray, sample_pos: np.ndarray) -> np.ndarray:
         """
@@ -320,22 +333,28 @@ class RRTStar(Module):
         - near_node_indices (np.ndarray): Indices of the nodes within the search radius.
         - new_node_index (int): Index of the new node.
         """
-        new_node = self.tree.nodes[new_node_index]
-        new_cost = self.tree.costs[new_node_index]
+        if near_node_indices.size == 0:
+            return
 
-        for near_index in near_node_indices:
-            if near_index == new_node_index:
-                continue  # Skip if it's the same node
-            near_node = self.tree.nodes[near_index]
-            if self._is_collision(near_node, new_node):
-                continue  # Skip nodes that would result in a collision
+        near_node_indices = near_node_indices[near_node_indices != new_node_index]
 
-            # Calculate potential new cost for near_node if it were to be connected through new_node
-            potential_new_cost = new_cost + self._distance(new_node, near_node)
-            if potential_new_cost < self.tree.costs[near_index]:
-                # Update parent to new_node if it provides a shorter path
-                self.tree.edges[near_index] = new_node_index
-                self.tree.costs[near_index] = potential_new_cost
+        near_nodes = self.tree.nodes[near_node_indices]
+        new_node = self.tree.nodes[new_node_index][np.newaxis, :]
+
+        # Check for collisions along the paths from the new node to the nearest nodes
+        is_collisions = self._is_collisions(near_nodes, new_node)
+        valid_indices = near_node_indices[~is_collisions]
+
+        if valid_indices.size == 0:
+            return
+
+        # Calculate the total costs for the valid indices
+        distances = self._distances(self.tree.nodes[valid_indices], new_node)
+        potential_costs = self.tree.costs[new_node_index] + distances
+
+        is_rewired = potential_costs < self.tree.costs[valid_indices]
+        self.tree.edges[valid_indices[is_rewired]] = new_node_index
+        self.tree.costs[valid_indices[is_rewired]] = potential_costs[is_rewired]
 
     def _is_within_bounds(self, node: np.ndarray) -> bool:
         """
@@ -353,41 +372,53 @@ class RRTStar(Module):
             and self.y_limits[0] <= y <= self.y_limits[1]
         )
 
-    def _distance(self, node1: np.ndarray, node2: np.ndarray) -> float:
+    def _distances(self, nodes1: np.ndarray, nodes2: np.ndarray) -> np.ndarray:
         """
-        Calculate the total 3D distance between two nodes.
+        Calculate the total 3D distances between two sets of nodes.
 
         Parameters:
-        - node1 (np.ndarray): Starting node.
-        - node2 (np.ndarray): Ending node.
+        - nodes1 (np.ndarray): Starting nodes.
+        - nodes2 (np.ndarray): Ending nodes.
 
         Returns:
-        - float: Total 3D distance between the two nodes.
+        - np.ndarray: Total 3D distances between the two sets of nodes.
         """
-        pose_indices = self._edge_to_pose_indices(node1, node2)
-        heights = self.heights[pose_indices[:, 1], pose_indices[:, 0]]
-        vertical_distances = np.abs(np.diff(heights))
+        pose_indices = self._edges_to_pose_indices(nodes1, nodes2)
+        valid_mask = pose_indices[:, :, 0] != -1
 
-        dx = np.diff(pose_indices[:, 0]) * self.resolution
-        dy = np.diff(pose_indices[:, 1]) * self.resolution
+        x = np.where(valid_mask, pose_indices[:, :, 0], np.nan)
+        y = np.where(valid_mask, pose_indices[:, :, 1], np.nan)
 
-        return np.sum(np.sqrt(dx ** 2 + dy ** 2 + vertical_distances ** 2))
-
-    def _is_collision(self, node1: np.ndarray, node2: np.ndarray) -> bool:
-        """
-        Check if the robot is stuck along the path from the nearest node to the new node.
-
-        Parameters:
-        - node1 (np.ndarray): Nearest node in the tree.
-        - node2 (np.ndarray): New node to check for collisions.
-
-        Returns:
-        - bool: True if the robot is stuck along the path, False otherwise.
-        """
-        pose_indices = self._edge_to_pose_indices(node1, node2)
-        return np.any(
-            self.travs[pose_indices[:, 1], pose_indices[:, 0]] <= self._stuck_threshold
+        heights = np.where(
+            valid_mask,
+            self.heights[pose_indices[:, :, 1], pose_indices[:, :, 0]],
+            np.nan,
         )
+        vertical_distances = np.abs(np.diff(heights, axis=1, prepend=np.nan))
+
+        dx = np.diff(x, axis=1, prepend=np.nan) * self.resolution
+        dy = np.diff(y, axis=1, prepend=np.nan) * self.resolution
+
+        return np.nansum(np.sqrt(dx ** 2 + dy ** 2 + vertical_distances ** 2), axis=1)
+
+    def _is_collisions(self, nodes1: np.ndarray, nodes2: np.ndarray) -> np.ndarray:
+        """
+        Check if the robot is stuck along the paths from the nearest nodes to the new nodes.
+
+        Parameters:
+        - nodes1 (np.ndarray): Nearest nodes in the tree.
+        - nodes2 (np.ndarray): New nodes to check for collisions.
+
+        Returns:
+        - np.ndarray: Boolean array indicating collision presence along each path.
+        """
+        pose_indices = self._edges_to_pose_indices(nodes1, nodes2)
+        valid_mask = pose_indices[:, :, 0] != -1
+
+        travs = np.where(
+            valid_mask, self.travs[pose_indices[:, :, 1], pose_indices[:, :, 0]], np.inf
+        )
+        return np.any(travs <= self._stuck_threshold, axis=1)
 
     def _edge_to_pose_indices(self, node1: np.ndarray, node2: np.ndarray) -> np.ndarray:
         """
@@ -408,6 +439,65 @@ class RRTStar(Module):
         ).astype(int)
 
         return self._bresenham_line(x0, y0, x1, y1)
+
+    def _edges_to_pose_indices(
+        self, nodes1: np.ndarray, nodes2: np.ndarray
+    ) -> np.ndarray:
+        """
+        Convert the edges between two sets of nodes to a list of grid indices.
+
+        Parameters:
+        - nodes1 (np.ndarray): Starting nodes.
+        - nodes2 (np.ndarray): Ending nodes.
+
+        Returns:
+        - np.ndarray: Padded grid indices along the edges.
+        """
+
+        if nodes1.shape[0] != nodes2.shape[0]:
+            if nodes1.shape[0] == 1:
+                nodes1 = np.repeat(nodes1, nodes2.shape[0], axis=0)
+            elif nodes2.shape[0] == 1:
+                nodes2 = np.repeat(nodes2, nodes1.shape[0], axis=0)
+            else:
+                raise ValueError(
+                    "nodes1 and nodes2 have incompatible shapes and neither is a single node."
+                )
+
+        x0s, y0s = (
+            np.floor(
+                (nodes1 - np.array([self.x_limits[0], self.y_limits[0]])[None, :])
+                / self.resolution
+            )
+            .astype(int)
+            .T
+        )
+        x1s, y1s = (
+            np.floor(
+                (nodes2 - np.array([self.x_limits[0], self.y_limits[0]])[None, :])
+                / self.resolution
+            )
+            .astype(int)
+            .T
+        )
+
+        # Precompute the maximum number of indices to allocate
+        max_len = (
+            max(
+                [
+                    np.abs(x1 - x0) + np.abs(y1 - y0)
+                    for x0, y0, x1, y1 in zip(x0s, y0s, x1s, y1s)
+                ]
+            )
+            + 1
+        )
+
+        pose_indices = np.full((len(x0s), max_len, 2), -1, dtype=int)
+        for i, (x0, y0, x1, y1) in enumerate(zip(x0s, y0s, x1s, y1s)):
+            pose_indice = self._bresenham_line(x0, y0, x1, y1)
+            pose_indices[i, : pose_indice.shape[0]] = pose_indice
+
+        return pose_indices
 
     def _bresenham_line(self, x0: int, y0: int, x1: int, y1: int) -> np.ndarray:
         """
@@ -443,9 +533,7 @@ class RRTStar(Module):
 
         return np.array(indices)
 
-    def _is_goal_reached(
-        self, goal_threshold: float = 0.1
-    ) -> tuple[bool, list[int]]:
+    def _is_goal_reached(self, goal_threshold: float = 0.1) -> tuple[bool, list[int]]:
         """
         Check if the goal position is reached from the tree within a threshold.
 
@@ -454,23 +542,29 @@ class RRTStar(Module):
 
         Returns:
         - tuple[bool, list[int]]: Tuple containing a boolean indicating if the goal is reached, 
-                                            and the goal node index.
+                                  and the goal node index.
         """
         near_goal_indices = self.tree.kd_tree.query_ball_point(
             self._goal_node, goal_threshold
         )
 
-        goal_node_indices_costs = []
-        for index in near_goal_indices:
-            if not self._is_collision(self.tree.nodes[index], self._goal_node):
-                goal_node_indices_costs.append((index, self.tree.costs[index]))
-
-        if len(goal_node_indices_costs) == 0:
+        if not near_goal_indices:
             return False, []
-        
-        goal_node_indices_costs.sort(key=lambda x: x[1])
-        goal_node_indices = [node[0] for node in goal_node_indices_costs]
-        return True, goal_node_indices
+
+        near_goal_nodes = self.tree.nodes[near_goal_indices]
+        is_collisions = self._is_collisions(
+            near_goal_nodes, self._goal_node[np.newaxis, :]
+        )
+
+        valid_indices = np.array(near_goal_indices)[~is_collisions]
+
+        if valid_indices.size == 0:
+            return False, []
+
+        goal_node_indices_costs = self.tree.costs[valid_indices]
+        goal_node_indices = valid_indices[np.argsort(goal_node_indices_costs)]
+
+        return True, goal_node_indices.tolist()
 
     def _reconstruct_path(self, goal_node_index: int) -> torch.Tensor:
         """
