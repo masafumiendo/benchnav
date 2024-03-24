@@ -4,12 +4,13 @@ Masafumi Endo, 2024.
 
 from __future__ import annotations
 
-from typing import Callable, Tuple, Optional
+from typing import Tuple
 
 import torch
 import torch.nn as nn
 
 from src.simulator.robot_model import UnicycleModel
+from src.planners.local_planners.objectives import Objectives
 
 
 class DWA(nn.Module):
@@ -24,8 +25,7 @@ class DWA(nn.Module):
         dim_state: int,
         dim_control: int,
         dynamics: UnicycleModel,
-        stage_cost: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-        terminal_cost: Callable[[torch.Tensor], torch.Tensor],
+        objectives: Objectives,
         a_lim: torch.Tensor,
         delta_t: float,
         lookahead_distance: float = 1.0,
@@ -43,8 +43,7 @@ class DWA(nn.Module):
         - dim_state (int): Dimension of state.
         - dim_control (int): Dimension of control.
         - dynamics (UnicycleModel): Dynamics model.
-        - stage_cost (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): Stage cost.
-        - terminal_cost (Callable[[torch.Tensor], torch.Tensor]): Terminal cost.
+        - objectives (Objectives): Objectives class.
         - a_lim (torch.Tensor): Maximum acceleration.
         - delta_t (float): Time step for simulation [s].
         - lookahead_distance (float): Lookahead distance for the sub-goal selection.
@@ -81,8 +80,8 @@ class DWA(nn.Module):
         self._dim_state = dim_state
         self._dim_control = dim_control
         self._dynamics = dynamics
-        self._stage_cost = stage_cost
-        self._terminal_cost = terminal_cost
+        self._stage_cost = objectives.stage_cost
+        self._terminal_cost = objectives.terminal_cost
         self._u_min = (
             self._dynamics.min_action.clone().detach().to(self._device, self._dtype)
         )
