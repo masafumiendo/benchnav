@@ -9,7 +9,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
 import torch
-from gpytorch.likelihoods import GaussianLikelihood
 
 from src.environments.grid_map import GridMap
 from src.simulator.planetary_env import PlanetaryEnv
@@ -164,8 +163,7 @@ def main(device: str):
         dim_state=3,
         dim_control=2,
         dynamics=dynamics,
-        stage_cost=objectives.stage_cost,
-        terminal_cost=objectives.terminal_cost,
+        objectives=objectives,
         sigmas=torch.tensor([0.5, 0.5]),
         lambda_=0.5,
     )

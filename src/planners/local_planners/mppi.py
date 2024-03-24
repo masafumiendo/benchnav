@@ -4,13 +4,14 @@ Kohei Honda, 2024.
 
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 from src.simulator.robot_model import UnicycleModel
+from src.planners.local_planners.objectives import Objectives
 
 
 class MPPI(nn.Module):
@@ -26,8 +27,7 @@ class MPPI(nn.Module):
         dim_state: int,
         dim_control: int,
         dynamics: UnicycleModel,
-        stage_cost: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-        terminal_cost: Callable[[torch.Tensor], torch.Tensor],
+        objectives: Objectives,
         sigmas: torch.Tensor,
         lambda_: float,
         device=torch.device("cuda"),
@@ -41,8 +41,7 @@ class MPPI(nn.Module):
         :param dim_state: Dimension of state.
         :param dim_control: Dimension of control.
         :param dynamics: Dynamics model.
-        :param stage_cost: Stage cost.
-        :param terminal_cost: Terminal cost.
+        :param objectives: Objectives class.
         :param sigmas: Noise standard deviation for each control dimension.
         :param lambda_: temperature parameter.
         :param device: Device to run the solver.
@@ -79,8 +78,8 @@ class MPPI(nn.Module):
         self._dim_state = dim_state
         self._dim_control = dim_control
         self._dynamics = dynamics
-        self._stage_cost = stage_cost
-        self._terminal_cost = terminal_cost
+        self._stage_cost = objectives.stage_cost
+        self._terminal_cost = objectives.terminal_cost
         self._u_min = (
             self._dynamics.min_action.clone().detach().to(self._device, self._dtype)
         )
