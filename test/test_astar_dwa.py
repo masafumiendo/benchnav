@@ -193,7 +193,7 @@ def main(device: str):
             trajectory=state_seq,
             top_samples=(top_samples, top_weights),
             is_collisions=is_collisions,
-            reference_paths=solver.reference_path.unsqueeze(0),
+            reference_paths=solver.reference_path,
         )
 
         if is_terminated:
