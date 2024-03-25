@@ -29,7 +29,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         start_pos: Optional[torch.Tensor] = None,
         goal_pos: Optional[torch.Tensor] = None,
         delta_t: Optional[float] = 0.1,
-        time_limit: Optional[int] = 100,
+        time_limit: Optional[float] = 100,
         stuck_threshold: Optional[float] = 0.1,
         render_mode: Optional[str] = "human",
         seed: Optional[int] = None,
@@ -44,7 +44,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - start_pos (Optional[torch.Tensor]): Starting position of the agent (x, y) [m].
         - goal_pos (Optional[torch.Tensor]): Goal position of the agent (x, y) [m].
         - delta_t (Optional[float]): Time step for simulation [s].
-        - time_limit (Optional[int]): Time limit for the episode [s].
+        - time_limit (Optional[float]): Time limit for the episode [s].
         - stuck_threshold (Optional[float]): Threshold for the robot to be considered stuck (low traversability).
         - render_mode (Optional[str]): Rendering mode for the environment.
         - seed (Optional[int]): Random seed for reproducibility.
