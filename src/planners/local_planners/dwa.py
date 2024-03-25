@@ -111,7 +111,7 @@ class DWA(nn.Module):
             dtype=self._dtype,
         )
 
-        self._reference_path = None
+        self.reference_path = None
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -163,7 +163,7 @@ class DWA(nn.Module):
             assert (
                 reference_path.shape[1] == 2
             ), "reference_path must be a tensor of shape (num_positions, 2)"
-            self._reference_path = reference_path.to(self._device, self._dtype)
+            self.reference_path = reference_path.to(self._device, self._dtype)
 
     def _generate_actions(self) -> torch.Tensor:
         """
@@ -242,7 +242,7 @@ class DWA(nn.Module):
         """
         sub_goal_pos = (
             self._select_sub_goal(state_seq_batch[0, 0, :])
-            if self._reference_path is not None
+            if self.reference_path is not None
             else None
         )
         cost_batch = torch.zeros(
@@ -267,7 +267,7 @@ class DWA(nn.Module):
         Returns:
         - sub_goal_pos (torch.Tensor): Sub-goal position.
         """
-        deltas = self._reference_path - state[:2]
+        deltas = self.reference_path - state[:2]
 
         distances = torch.norm(deltas, dim=1)
         angles = torch.atan2(deltas[:, 1], deltas[:, 0]) - state[2]
@@ -279,9 +279,9 @@ class DWA(nn.Module):
         if valid_mask.any():
             min_distance_ahead = distances[valid_mask].min()
             sub_goal_index = torch.where(distances == min_distance_ahead)[0][0]
-            sub_goal_pos = self._reference_path[sub_goal_index]
+            sub_goal_pos = self.reference_path[sub_goal_index]
         else:
-            sub_goal_pos = self._reference_path[-1]
+            sub_goal_pos = self.reference_path[-1]
         return sub_goal_pos
 
     def get_top_samples(self) -> Tuple[torch.Tensor, torch.Tensor]:
