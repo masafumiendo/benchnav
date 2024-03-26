@@ -15,7 +15,7 @@ from src.simulator.utils import ModelConfig
 from src.simulator.robot_model import UnicycleModel
 from src.planners.local_planners.objectives import Objectives
 from src.planners.local_planners.dwa import DWA
-from src.planners.global_planners.astar import AStar
+from src.planners.global_planners.search_based.astar import AStar
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.prediction_models.trainers.utils import load_model_state_dict
 from src.prediction_models.trainers.utils import load_slip_regressors

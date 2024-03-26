@@ -5,7 +5,7 @@ Kohei Honda and Masafumi Endo, 2024.
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import imageio
 import numpy as np
@@ -19,6 +19,7 @@ from matplotlib.collections import LineCollection
 from src.environments.grid_map import GridMap
 from src.simulator.robot_model import UnicycleModel
 from src.simulator.utils import ModelConfig
+from src.planners.global_planners.sampling_based.tree import Tree
 from src.utils.utils import set_randomness
 
 
@@ -222,18 +223,20 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
     def render(
         self,
         trajectory: torch.Tensor,
-        top_samples: tuple[torch.Tensor, torch.Tensor],
         is_collisions: torch.Tensor,
-        reference_path: Optional[torch.Tensor] = None,
+        top_samples: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+        reference_paths: Optional[Union[torch.Tensor, list[torch.Tensor]]] = None,
+        tree: Optional[Tree] = None,
     ) -> None:
         """
         Render the environment with the trajectory, top samples, and collision states.
 
         Parameters:
         - trajectory (torch.Tensor): Trajectory of the robot.
-        - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
-        - reference_path (Optional[torch.Tensor]): Reference path of the robot.
+        - top_samples (Optional[tuple[torch.Tensor, torch.Tensor]]): Top samples from the planner.
+        - reference_paths (Optional[Union[torch.Tensor, list[torch.Tensor]]]): Reference paths of the robot.
+        - tree (Optional[Tree]): Tree data structure from the planner.
         """
         # Plot static information (terrain background maps and robot start and goal positions)
         self._ax.imshow(
@@ -258,18 +261,10 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             marker="x",
             zorder=2,
         )
-        # Plot reference path if provided
-        self._ax.plot(
-            reference_path[:, 0].cpu().numpy(),
-            reference_path[:, 1].cpu().numpy(),
-            c="blue",
-            linestyle="--",
-            zorder=25,
-        ) if reference_path is not None else None
 
         # Plot dynamic trajectory, top samples, and collision states
         self._render_dynamic_information(
-            trajectory, top_samples, is_collisions, self._ax
+            trajectory, is_collisions, top_samples, reference_paths, tree, self._ax
         )
 
         # Append rendered frames for animation
@@ -286,8 +281,10 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
     def _render_dynamic_information(
         self,
         trajectory: torch.Tensor,
-        top_samples: tuple[torch.Tensor, torch.Tensor],
         is_collisions: torch.Tensor,
+        top_samples: Optional[tuple[torch.Tensor, torch.Tensor]],
+        reference_paths: Optional[Union[torch.Tensor, list[torch.Tensor]]],
+        tree: Optional[Tree],
         ax: plt.Axes,
     ) -> None:
         """
@@ -295,8 +292,10 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
 
         Parameters:
         - trajectory (torch.Tensor): Trajectory of the robot.
-        - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
+        - top_samples (Optional[tuple[torch.Tensor, torch.Tensor]]): Top samples from the planner.
+        - reference_paths (Optional[Union[torch.Tensor, list[torch.Tensor]]]): Reference paths of the robot.
+        - tree (Optional[Tree]): Tree data structure from the planner.
         - ax (plt.Axes): Axes to plot the dynamic information.
         """
         # Current robot state with reward
@@ -351,6 +350,35 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     c="lightblue",
                     alpha=top_weights[i],
                     zorder=75,
+                )
+
+        # Reference paths if provided
+        if reference_paths is not None:
+            if isinstance(reference_paths, torch.Tensor):
+                reference_paths = [reference_paths]
+            for reference_path in reference_paths:
+                ax.plot(
+                    reference_path[:, 0].cpu().numpy(),
+                    reference_path[:, 1].cpu().numpy(),
+                    c="blue",
+                    linestyle="--",
+                    zorder=25,
+                )
+
+        # Tree if provided
+        if tree is not None:
+            nodes = tree.nodes[: tree.nodes_count].cpu().numpy()
+            edges = tree.edges[: tree.nodes_count].cpu().numpy()
+            for i in range(1, tree.nodes_count):
+                parent = nodes[edges[i]]
+                child = nodes[i]
+                ax.plot(
+                    [parent[0], child[0]],
+                    [parent[1], child[1]],
+                    c="black",
+                    linestyle=":",
+                    alpha=0.5,
+                    zorder=15,
                 )
 
     def close(self, file_path: str = None) -> None:

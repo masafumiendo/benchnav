@@ -186,8 +186,8 @@ def main(device: str):
 
         env.render(
             trajectory=state_seq,
-            top_samples=(top_samples, top_weights),
             is_collisions=is_collisions,
+            top_samples=(top_samples, top_weights),
         )
         if is_terminated:
             print("Goal Reached!")
