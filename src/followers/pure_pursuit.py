@@ -160,15 +160,27 @@ class PurePursuit:
         Returns:
         - target_points (torch.Tensor): The target points on the reference paths.
         """
-        squared_distances = torch.sum(
-            (reference_paths_batch - state_batch[:, :2].unsqueeze(1)) ** 2, dim=2
+        deltas = reference_paths_batch - state_batch[:, :2].unsqueeze(1)
+
+        distances = torch.sum(deltas ** 2, dim=2)
+        angles = torch.atan2(deltas[:, :, 1], deltas[:, :, 0]) - state_batch[
+            :, 2
+        ].unsqueeze(1)
+
+        valid_mask = (angles.abs() < torch.pi / 2) & (
+            distances > self._lookahead_distance ** 2
         )
-        target_indices = torch.argmin(
-            torch.abs(squared_distances - self._lookahead_distance ** 2), dim=1
+
+        target_indices = valid_mask.long().argmax(dim=1)
+        batch_indices = torch.arange(
+            state_batch.size(0), device=self._device, dtype=torch.long
         )
-        target_points = reference_paths_batch[
-            torch.arange(state_batch.size(0), device=self._device), target_indices
-        ]
+        target_indices = torch.where(
+            valid_mask.any(dim=1),
+            target_indices,
+            (reference_paths_batch.size(1) - 1) * torch.ones_like(target_indices),
+        )
+        target_points = reference_paths_batch[batch_indices, target_indices]
         return target_points
 
     def _calculate_errors(
