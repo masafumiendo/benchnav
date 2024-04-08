@@ -30,7 +30,7 @@ class CLRRT(RRT):
         objectives: Objectives,
         grid_map: GridMap,
         delta_t: float,
-        max_iterations: int = 1000,
+        max_iterations: int = 500,
         delta_distance: float = 5,
         goal_sample_rate: float = 0.1,
         max_seqs: int = 100,
@@ -78,7 +78,7 @@ class CLRRT(RRT):
         ), "maximum actions must be a tensor of shape (dim_control,)"
 
         # device and dtype
-        if torch.cuda.is_available() and device == torch.device("cuda"):
+        if torch.cuda.is_available():
             self._device = torch.device("cuda")
         else:
             self._device = torch.device("cpu")
@@ -118,12 +118,15 @@ class CLRRT(RRT):
             dtype=self._dtype,
         )
         self._pure_pursuit = PurePursuit(
-            lookahead_distance=1.0,
+            lookahead_distance=0.1,
             lin_controller=lin_controller,
             ang_controller=ang_controller,
             device=self._device,
             dtype=self._dtype,
         )
+
+        # Set initial starting state
+        self._start_state = None
 
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -136,7 +139,8 @@ class CLRRT(RRT):
         - optimal_action_seq (torch.Tensor): Optimal action sequence.
         - optimal_state_seq (torch.Tensor): Optimal state sequence.        
         """
-        start_node = state
+        self._start_state = state
+        start_node = state[:2] if state.shape[0] == 3 else state
 
         if not self._is_within_bounds(start_node) or not self._is_within_bounds(
             self._goal_node
@@ -154,15 +158,15 @@ class CLRRT(RRT):
         for _ in range(self._max_iterations):
             sample_pos = self._sample_position()
             nearest_node_index = self.tree.nearest_neighbor(sample_pos)
-            new_node, action_seq, state_seq, cost, is_feasible = self._steer(
-                self.tree.nodes[nearest_node_index], sample_pos
+            new_node, action_seq, state_seq, controllers_state, cost, is_feasible = self._steer(
+                nearest_node_index, sample_pos
             )
 
             if not is_feasible:
                 continue
 
             # Add the new node to the tree
-            new_node_index = self.tree.add_node(new_node)
+            new_node_index = self.tree.add_node(new_node, controllers_state)
             self.tree.add_edge(
                 nearest_node_index, new_node_index, action_seq, state_seq
             )
@@ -178,13 +182,13 @@ class CLRRT(RRT):
             return None, None
 
     def _steer(
-        self, from_node: torch.Tensor, to_node: torch.Tensor
+        self, from_node_index: int, to_node: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
         """
         Steer the robot from the nearest node to the sample position.
 
         Parameters:
-        - from_node (torch.Tensor): Nearest node in the tree.
+        - from_node_index (int): Index of the nearest node in the tree.
         - to_node (torch.Tensor): Sample position to steer to.
 
         Returns:
@@ -194,6 +198,8 @@ class CLRRT(RRT):
         - torch.Tensor: Cost of the path following.
         - bool: Feasibility of the path following.
         """
+        # Retrieve the nearest node
+        from_node = self.tree.nodes[from_node_index]
         # Restrict the distance between nodes
         direction = to_node - from_node
         distance = torch.norm(direction)
@@ -204,17 +210,17 @@ class CLRRT(RRT):
         reference_path = self._generate_reference_path(from_node, to_node)
 
         # Simulate the path following
-        action_seq, state_seq, cost, is_feasible = self._simulate_path_following(
-            from_node, reference_path
+        action_seq, state_seq, controllers_state, cost, is_feasible = self._simulate_path_following(
+            from_node_index, reference_path
         )
 
         if is_feasible:
-            return to_node, action_seq, state_seq, cost, True
+            return to_node, action_seq, state_seq, controllers_state, cost, True
         else:
-            return None, None, None, None, False
+            return None, None, None, None, None, False
 
     def _generate_reference_path(
-        self, from_node: torch.Tensor, to_node: torch.Tensor, resolution: float = 1.0
+        self, from_node: torch.Tensor, to_node: torch.Tensor, resolution: float = 0.5
     ) -> torch.Tensor:
         """
         Generate the reference path from the nearest node to the sample position.
@@ -240,25 +246,22 @@ class CLRRT(RRT):
         return torch.stack([reference_path_x, reference_path_y], dim=1)
 
     def _simulate_path_following(
-        self, start_node: torch.Tensor, reference_path: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        self, start_node_index: int, reference_path: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
         """
         Simulate the path following using the Pure Pursuit controller.
 
         Parameters:
-        - start_node (torch.Tensor): Start node in the tree.
+        - start_node_index (int): Index of the start node in the tree.
         - reference_path (torch.Tensor): Reference path to follow.
 
         Returns:
         - action_seq (torch.Tensor): Action sequence.
         - state_seq (torch.Tensor): State sequence.
+        - controllers_state (torch.Tensor): Terminal state of the PID controllers.
         - cost (torch.Tensor): Cost of the path following.
         - is_feasible (bool): Feasibility of the path following.
         """
-        # Initialize the state sequence and the Pure Pursuit controller
-        state_seq[:, 0, :] = start_node.unsqueeze(0)
-        self._pure_pursuit.reset(1)  # batch size = 1
-
         # Initialize action and state sequences
         action_seq = torch.zeros(
             (1, self._max_seqs, self._dim_control),
@@ -272,11 +275,24 @@ class CLRRT(RRT):
         )
         cost = torch.tensor([0.0], device=self._device, dtype=self._dtype)
 
+        # Retrieve the initial states from the tree
+        if start_node_index == 0:
+            state_seq[:, 0, :] = self._start_state.repeat(1, 1)
+            self._pure_pursuit.reset(1)
+        else:
+            seq_length = self.tree.seq_lengths[start_node_index]
+            controllers_state = self.tree.controllers_states[start_node_index]
+
+            state_seq[:, 0, :] = self.tree.state_seqs[
+                start_node_index, seq_length : seq_length + 1, :
+            ]
+            self._pure_pursuit.reset(1, controllers_state.unsqueeze(0))
+
         reference_path = reference_path.unsqueeze(0)
         is_feasible = False
 
         for t in range(self._max_seqs):
-            action_seq[:, t, :] = self._pure_pursuit.control(
+            action_seq[:, t, :], controllers_state = self._pure_pursuit.control(
                 state_seq[:, t, :], reference_path
             )
             state_seq[:, t + 1, :] = self._dynamics.transit(
@@ -285,7 +301,7 @@ class CLRRT(RRT):
 
             cost += self._stage_cost(state_seq[:, t, :], action_seq[:, t, :])
 
-            if torch.norm(reference_path[:, -1, :] - state_seq[:, t + 1, :]) < 0.1:
+            if torch.norm(reference_path[:, -1, :] - state_seq[:, t + 1, :2]) < 0.1:
                 action_seq = action_seq[:, : t + 1, :]
                 state_seq = state_seq[:, : t + 2, :]
                 cost += self._terminal_cost(state_seq[:, t + 1, :])
@@ -295,4 +311,4 @@ class CLRRT(RRT):
         if not is_feasible:
             cost += self._terminal_cost(state_seq[:, -1, :])
 
-        return action_seq, state_seq, cost, is_feasible
+        return action_seq, state_seq, controllers_state, cost, is_feasible
