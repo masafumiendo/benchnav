@@ -99,20 +99,14 @@ class RRT(Module):
             raise ValueError("Start or goal position is out of bounds.")
 
         # Initialize the tree with the start node
-        self.tree = Tree(
-            dim_state=self._dim_state,
-            planner_name=self._planner_name,
-            device=self.device,
-        )
+        self.tree = Tree(planner_name=self._planner_name, device=self.device)
         self.tree.add_node(start_node)
 
         for _ in range(self._max_iterations):
             # Sample a position to expand the tree
             sample_pos = self._sample_position()
             nearest_node_index = self.tree.nearest_neighbor(sample_pos)
-            new_node, cost, is_feasible = self._steer(
-                self.tree.nodes[nearest_node_index], sample_pos
-            )
+            new_node, cost, is_feasible = self._steer(nearest_node_index, sample_pos)
 
             if not is_feasible:
                 continue
@@ -170,13 +164,13 @@ class RRT(Module):
             )
 
     def _steer(
-        self, from_node: torch.Tensor, to_node: torch.Tensor
+        self, from_node_index: int, to_node: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, bool]:
         """
         Steer the robot from the nearest node to the sample position.
 
         Parameters:
-        - from_node (torch.Tensor): Nearest node in the tree.
+        - from_node_index (int): Index of the nearest node in the tree.
         - to_node (torch.Tensor): Sample position to steer to.
 
         Returns:
@@ -184,6 +178,7 @@ class RRT(Module):
         - torch.Tensor: Distance between the new node and the nearest node.
         - bool: True if the new node is feasible.
         """
+        from_node = self.tree.nodes[from_node_index]
         direction = to_node - from_node
         distance = torch.norm(direction)
         if distance > self._delta_distance:

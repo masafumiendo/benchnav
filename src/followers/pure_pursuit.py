@@ -5,6 +5,7 @@ Masafumi Endo, 2024.
 from __future__ import annotations
 
 import torch
+from typing import Optional
 
 
 class PIDController:
@@ -39,20 +40,37 @@ class PIDController:
         self._previous_error = None
         self._integral = None
 
-    def reset(self, batch_size) -> None:
+    def reset(
+        self,
+        batch_size: int,
+        previous_error: Optional[torch.Tensor] = None,
+        integral: Optional[torch.Tensor] = None,
+    ) -> None:
         """
-        Reset the controller.
+        Reset the controller state. If previous_error and integral are provided, they are used to initialize
+        the controller's state; otherwise, the controller is reset to default initial states.
 
         Parameters:
-        - batch_size (int): The batch size.
+        - batch_size (int): The batch size for which the controller is being reset.
+        - previous_error (Optional[torch.Tensor]): Optional tensor to initialize the previous error state.
+        - integral (Optional[torch.Tensor]): Optional tensor to initialize the integral state.
         """
+        if previous_error is not None and integral is not None:
+            assert previous_error.shape == (batch_size, 1) and integral.shape == (
+                batch_size,
+                1,
+            ), "previous_error and integral tensors must match the provided batch_size in their dimensions and have a shape of [batch_size, 1]."
+            self._previous_error = previous_error
+            self._integral = integral
+        else:
+            self._previous_error = torch.zeros(
+                (batch_size, 1), device=self._device, dtype=self._dtype
+            )
+            self._integral = torch.zeros(
+                (batch_size, 1), device=self._device, dtype=self._dtype
+            )
+
         self._batch_size = batch_size
-        self._previous_error = torch.zeros(
-            self._batch_size, device=self._device, dtype=self._dtype
-        )
-        self._integral = torch.zeros(
-            self._batch_size, device=self._device, dtype=self._dtype
-        )
 
     def update(self, current_error: torch.Tensor) -> torch.Tensor:
         """
@@ -63,18 +81,15 @@ class PIDController:
 
         Returns:
         - control (torch.Tensor): The control input for the robot.
+        - controller_state (torch.Tensor): The state of the controller.
         """
         if self._previous_error is None or self._integral is None:
             raise ValueError(
                 "The controller must be reset before the first update call."
             )
-        # Compute the proportional term
+        # Compute the p, i, and d terms
         proportional = current_error
-
-        # Compute the integral term
         self._integral += current_error * self._delta_t
-
-        # Compute the derivative term
         derivative = (current_error - self._previous_error) / self._delta_t
 
         # Compute the control input
@@ -85,7 +100,7 @@ class PIDController:
         # Update the previous error
         self._previous_error = current_error
 
-        return control
+        return control, torch.cat([self._previous_error, self._integral], dim=1)
 
 
 class PurePursuit:
@@ -113,15 +128,32 @@ class PurePursuit:
         self._device = device
         self._dtype = dtype
 
-    def reset(self, batch_size: int) -> None:
+    def reset(
+        self, batch_size: int, controllers_state: Optional[torch.Tensor] = None
+    ) -> None:
         """
-        Reset the controller.
+        Reset the Pure Pursuit controller and its underlying PID controllers. If controllers_state is provided,
+        it is used to initialize the states of the PID controllers; otherwise, the controllers are reset to default states.
 
         Parameters:
-        - batch_size (int): The batch size.
+        - batch_size (int): The batch size for which the controllers are being reset.
+        - controllers_state (Optional[torch.Tensor]): Optional tensor containing the states to initialize the PID controllers.
         """
-        self._lin_controller.reset(batch_size)
-        self._ang_controller.reset(batch_size)
+        if controllers_state is not None:
+            # Validate the shape of the controllers_state tensor
+            assert (
+                controllers_state.dim() == 2 and controllers_state.size(1) == 4
+            ), "controllers_state tensor must have a shape of [batch_size, 4]"
+
+            lin_previous_error, lin_integral, ang_previous_error, ang_integral = torch.split(
+                controllers_state, 1, dim=1
+            )
+
+            self._lin_controller.reset(batch_size, lin_previous_error, lin_integral)
+            self._ang_controller.reset(batch_size, ang_previous_error, ang_integral)
+        else:
+            self._lin_controller.reset(batch_size)
+            self._ang_controller.reset(batch_size)
 
     def control(
         self, state_batch: torch.Tensor, reference_paths_batch: torch.Tensor
@@ -135,6 +167,7 @@ class PurePursuit:
 
         Returns:
         - action (torch.Tensor): The control input for the robot.
+        - controllers_state (torch.Tensor): The state of the controllers.
         """
         # Compute the target point
         target_points = self._compute_target_points(state_batch, reference_paths_batch)
@@ -143,9 +176,12 @@ class PurePursuit:
         )
 
         # Compute the control input
-        vs = self._lin_controller.update(linear_errors)
-        omegas = self._ang_controller.update(angular_errors)
-        return torch.stack([vs, omegas], dim=1)
+        vs, lin_controller_state = self._lin_controller.update(linear_errors)
+        omegas, ang_controller_state = self._ang_controller.update(angular_errors)
+        return (
+            torch.cat([vs, omegas], dim=1),
+            torch.cat([lin_controller_state, ang_controller_state], dim=1),
+        )
 
     def _compute_target_points(
         self, state_batch: torch.Tensor, reference_paths_batch: torch.Tensor
@@ -197,11 +233,14 @@ class PurePursuit:
         - linear_errors (torch.Tensor): The error signals for the linear velocity controller.
         - angular_errors (torch.Tensor): The error signals for the angular velocity controller.
         """
-        linear_errors = torch.norm(target_points - state_batch[:, :2], dim=1)
+        linear_errors = torch.norm(
+            target_points - state_batch[:, :2], dim=1, keepdim=True
+        )
         angles_to_targets = torch.atan2(
             target_points[:, 1] - state_batch[:, 1],
             target_points[:, 0] - state_batch[:, 0],
         )
-        angular_errors = angles_to_targets - state_batch[:, 2]
+
+        angular_errors = angles_to_targets - state_batch[:, 2].unsqueeze(1)
         angular_errors = ((angular_errors + torch.pi) % (2 * torch.pi)) - torch.pi
         return linear_errors, angular_errors

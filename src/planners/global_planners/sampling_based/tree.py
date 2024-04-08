@@ -11,7 +11,8 @@ from typing import Optional
 class Tree:
     def __init__(
         self,
-        dim_state: int = 2,
+        dim_node: int = 2,
+        dim_state: int = 3,
         dim_control: int = 2,
         initial_capacity: int = 1000,
         max_seqs: Optional[int] = 100,
@@ -22,6 +23,7 @@ class Tree:
         Initialize the tree data structure.
 
         Parameters:
+        - dim_node (int): Dimension of the node space.
         - dim_state (int): Dimension of the state space.
         - dim_control (int): Dimension of the control space.
         - initial_capacity (int): Initial capacity of the tree.
@@ -38,6 +40,7 @@ class Tree:
         - state_seqs (torch.Tensor): State sequences from the parent to the child node.
         - seq_lengths (torch.Tensor): Lengths of the sequences.
         """
+        self._dim_node = dim_node
         self._dim_state = dim_state
         self._dim_control = dim_control
         self._initial_capacity = initial_capacity
@@ -53,7 +56,7 @@ class Tree:
 
         # Basic tree structure
         self.nodes = torch.zeros(
-            (initial_capacity, self._dim_state), device=self._device
+            (initial_capacity, self._dim_node), device=self._device
         )
         self.nodes_count = 0
         self.edges = -torch.ones(
@@ -73,6 +76,9 @@ class Tree:
             self.seq_lengths = torch.zeros(
                 initial_capacity, dtype=torch.int64, device=self._device
             )
+            self.controllers_states = torch.zeros(
+                (initial_capacity, 2 * self._dim_control), device=self._device
+            )
 
     def _ensure_capacity(self) -> None:
         """
@@ -84,7 +90,7 @@ class Tree:
                 (
                     self.nodes,
                     torch.zeros(
-                        (new_capacity - self.nodes.size(0), self._dim_state),
+                        (new_capacity - self.nodes.size(0), self._dim_node),
                         device=self._device,
                     ),
                 )
@@ -147,13 +153,28 @@ class Tree:
                         ),
                     )
                 )
+                self.controllers_states = torch.cat(
+                    (
+                        self.controllers_states,
+                        torch.zeros(
+                            (
+                                new_capacity - self.controllers_states.size(0),
+                                2 * self._dim_control,
+                            ),
+                            device=self._device,
+                        ),
+                    )
+                )
 
-    def add_node(self, node: torch.Tensor) -> int:
+    def add_node(
+        self, node: torch.Tensor, controllers_state: Optional[torch.Tensor] = None
+    ) -> int:
         """
         Add a node to the tree.
 
         Parameters:
         - node (torch.Tensor): Node to add.
+        - controllers_state (torch.Tensor): State of the given controllers.
 
         Returns:
         - int: Index of the added node.
@@ -162,6 +183,9 @@ class Tree:
         node_index = self.nodes_count
         self.nodes[node_index] = node
         self.nodes_count += 1
+
+        if controllers_state is not None and self._planner_name == "cl_rrt":
+            self.controllers_states[node_index] = controllers_state
         return node_index
 
     def add_edge(
@@ -183,7 +207,7 @@ class Tree:
         self.edges[child_index] = parent_index
 
         if action_seq is not None and state_seq is not None:
-            seq_length = action_seq.size(0)
+            seq_length = action_seq.size(1)
             self.action_seqs[child_index, :seq_length] = action_seq
             self.state_seqs[child_index, : seq_length + 1] = state_seq
             self.seq_lengths[child_index] = seq_length
