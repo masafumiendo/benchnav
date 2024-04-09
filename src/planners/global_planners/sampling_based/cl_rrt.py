@@ -30,9 +30,9 @@ class CLRRT(RRT):
         objectives: Objectives,
         grid_map: GridMap,
         delta_t: float,
-        max_iterations: int = 500,
+        max_iterations: int = 1000,
         delta_distance: float = 5,
-        goal_sample_rate: float = 0.1,
+        goal_sample_rate: float = 0.25,
         max_seqs: int = 100,
         device: Optional[str] = None,
         dtype: torch.dtype = torch.float32,
@@ -118,7 +118,7 @@ class CLRRT(RRT):
             dtype=self._dtype,
         )
         self._pure_pursuit = PurePursuit(
-            lookahead_distance=0.1,
+            lookahead_distance=0.5,
             lin_controller=lin_controller,
             ang_controller=ang_controller,
             device=self._device,
@@ -215,7 +215,14 @@ class CLRRT(RRT):
         )
 
         if is_feasible:
-            return to_node, action_seq, state_seq, controllers_state, cost, True
+            return (
+                state_seq[:, -1, :2],
+                action_seq,
+                state_seq,
+                controllers_state,
+                cost,
+                True,
+            )
         else:
             return None, None, None, None, None, False
 
@@ -301,7 +308,7 @@ class CLRRT(RRT):
 
             cost += self._stage_cost(state_seq[:, t, :], action_seq[:, t, :])
 
-            if torch.norm(reference_path[:, -1, :] - state_seq[:, t + 1, :2]) < 0.1:
+            if torch.norm(reference_path[:, -1, :] - state_seq[:, t + 1, :2]) < 1:
                 action_seq = action_seq[:, : t + 1, :]
                 state_seq = state_seq[:, : t + 2, :]
                 cost += self._terminal_cost(state_seq[:, t + 1, :])
@@ -312,3 +319,40 @@ class CLRRT(RRT):
             cost += self._terminal_cost(state_seq[:, -1, :])
 
         return action_seq, state_seq, controllers_state, cost, is_feasible
+
+    def _reconstruct_state_action_seq(
+        self, goal_node_index: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Reconstruct the optimal state and action sequences from the goal node.
+
+        Parameters:
+        - goal_node_index (int): Index of the goal node in the tree.
+
+        Returns:
+        - torch.Tensor: Optimal action sequence.
+        - torch.Tensor: Optimal state sequence.
+        """
+        action_seqs = []
+        state_seqs = []
+
+        current_index = goal_node_index
+        while current_index != 0:  # Start node
+            parent_index = self.tree.edges[current_index]
+            seq_length = self.tree.seq_lengths[current_index]
+
+            action_seq = self.tree.action_seqs[current_index, :seq_length]
+            state_seq = self.tree.state_seqs[current_index, : seq_length + 1]
+
+            action_seqs.insert(0, action_seq)
+            if state_seqs:
+                state_seqs.insert(0, state_seq[1:])
+            else:
+                state_seqs.insert(0, state_seq)
+
+            current_index = parent_index
+
+        optimal_action_seq = torch.cat(action_seqs, dim=0)
+        optimal_state_seq = torch.cat(state_seqs, dim=0)
+
+        return optimal_action_seq, optimal_state_seq.unsqueeze(0)

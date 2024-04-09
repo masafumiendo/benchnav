@@ -14,8 +14,7 @@ from src.simulator.planetary_env import PlanetaryEnv
 from src.simulator.utils import ModelConfig
 from src.simulator.robot_model import UnicycleModel
 from src.planners.local_planners.objectives import Objectives
-from src.planners.local_planners.dwa import DWA
-from src.planners.global_planners.sampling_based.rrt import RRT
+from src.planners.global_planners.sampling_based.cl_rrt import CLRRT
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.prediction_models.trainers.utils import load_model_state_dict
 from src.prediction_models.trainers.utils import load_slip_regressors
@@ -156,40 +155,41 @@ def main(device: str):
         dynamics=dynamics, goal_pos=env._goal_pos, stuck_threshold=env.stuck_threshold
     )
 
-    solver = DWA(
-        horizon=50,
+    solver = CLRRT(
         dim_state=3,
         dim_control=2,
         dynamics=dynamics,
         objectives=objectives,
-        a_lim=torch.tensor([0.5, 0.5]),
+        grid_map=grid_map,
         delta_t=delta_t,
-        num_lin_vel=10,
-        num_ang_vel=10,
     )
 
-    # Initialize the A* global planner
-    rrt = RRT(grid_map=grid_map, goal_pos=goal_pos)
     state = env.reset(seed=0)
-    for _ in range(int(time_limit / delta_t)):
+    is_collisions = env.collision_check(states=state.unsqueeze(0).unsqueeze(0))
+    is_replan = True
+    for t in range(int(time_limit / delta_t)):
         with torch.no_grad():
-            reference_path = rrt.forward(state)
-            solver.update_reference_path(reference_path)
-            action_seq, state_seq = solver.forward(state=state)
+            if t == 0 or is_replan:
+                action_seq, state_seq = solver.forward(state=state)
+                action_index = 0
+                is_replan = False
 
-        state, reward, is_terminated, is_truncated = env.step(action_seq[0, :])
+            if t > 0:
+                expected_state = state_seq[:, action_index, :].squeeze()
+                pos_deviation = torch.norm(expected_state[:2] - state[:2])
+                is_replan = pos_deviation > 1.0
+                if is_replan:
+                    print(f"Replan at t={t}, pos_deviation={pos_deviation}")
+                    continue
+
+            action = action_seq[action_index, :]
+            action_index += 1
+
+        state, reward, is_terminated, is_truncated = env.step(action)
 
         is_collisions = env.collision_check(states=state_seq)
 
-        top_samples, top_weights = solver.get_top_samples()
-
-        env.render(
-            trajectory=state_seq,
-            is_collisions=is_collisions,
-            top_samples=(top_samples, top_weights),
-            reference_paths=solver.reference_path,
-            tree=rrt.tree,
-        )
+        env.render(trajectory=state_seq, is_collisions=is_collisions, tree=solver.tree)
 
         if is_terminated:
             print("Goal Reached!")
