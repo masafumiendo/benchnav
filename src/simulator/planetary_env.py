@@ -166,6 +166,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Reset rendering with two subplots
         self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
 
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['ytick.direction'] = 'in'
+
         self._ax.set_xlim(self._grid_map.x_limits)
         self._ax.set_ylim(self._grid_map.y_limits)
         self._ax.set_xlabel("x [m]")
