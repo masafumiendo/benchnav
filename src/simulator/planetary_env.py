@@ -166,8 +166,11 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Reset rendering with two subplots
         self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
 
+        self._ax.set_xlim(self._grid_map.x_limits)
+        self._ax.set_ylim(self._grid_map.y_limits)
+        self._ax.set_xlabel("x [m]")
+        self._ax.set_ylabel("y [m]")
         self._ax.set_aspect("equal")
-        self._ax.set_title("Terrain Appearance Map")
 
         # Set colormap and normalization for rendering
         self._norm = mcolors.Normalize(vmin=0, vmax=1)
@@ -267,6 +270,12 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             trajectory, is_collisions, top_samples, reference_paths, tree, self._ax
         )
 
+        self._ax.set_xlim(self._grid_map.x_limits)
+        self._ax.set_ylim(self._grid_map.y_limits)
+        self._ax.set_xlabel("x [m]")
+        self._ax.set_ylabel("y [m]")
+        self._ax.set_aspect("equal")
+
         # Append rendered frames for animation
         if self._render_mode == "human":
             plt.pause(0.001)
@@ -313,7 +322,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         points = self._history["states"][:, :2]
         segments = np.array([points[:-1], points[1:]]).transpose(1, 0, 2)
         lc = LineCollection(
-            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=50
+            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=100
         )
         lc.set_array(1 - self._history["rewards"])  # slip = 1 - traversability
         ax.add_collection(lc)
@@ -331,7 +340,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                 c=colors,
                 marker="o",
                 s=3,
-                zorder=100,
+                zorder=75,
             )
 
         # Top samples if provided
@@ -349,7 +358,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     top_samples[i, :, 1],
                     c="lightblue",
                     alpha=top_weights[i],
-                    zorder=75,
+                    zorder=50,
                 )
 
         # Reference paths if provided
@@ -377,9 +386,21 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     [parent[1], child[1]],
                     c="black",
                     linestyle=":",
-                    alpha=0.5,
                     zorder=15,
                 )
+
+                if hasattr(tree, "state_seqs"):
+                    if tree.seq_lengths[i] > 0:
+                        trajectory = (
+                            tree.state_seqs[i, : tree.seq_lengths[i], :2].cpu().numpy()
+                        )
+                        ax.plot(
+                            trajectory[:, 0],
+                            trajectory[:, 1],
+                            c="lightblue",
+                            linestyle="--",
+                            zorder=25,
+                        )
 
     def close(self, file_path: str = None) -> None:
         """
