@@ -60,7 +60,7 @@ class TraversabilityModel:
         - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
 
         Returns:
-        - trav (torch.Tensor): Traversability at the given position.
+        - travs (torch.Tensor): Traversability at the given positions as batch of traversability tensors shaped [batch_size, num_positions].
         """
         if self._model_config.mode == "observation":
             distributions = self._grid_map.get_values_at_positions(

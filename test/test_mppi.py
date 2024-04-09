@@ -9,14 +9,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
 import torch
-from gpytorch.likelihoods import GaussianLikelihood
 
 from src.environments.grid_map import GridMap
 from src.simulator.planetary_env import PlanetaryEnv
 from src.simulator.utils import ModelConfig
 from src.simulator.robot_model import UnicycleModel
-from src.planner.mppi import MPPI
-from src.planner.objectives import Objectives
+from src.planners.local_planners.mppi import MPPI
+from src.planners.local_planners.objectives import Objectives
 from src.prediction_models.trainers.utils import ParamsModelTraining
 from src.prediction_models.trainers.utils import load_model_state_dict
 from src.prediction_models.trainers.utils import load_slip_regressors
@@ -139,6 +138,7 @@ def main(device: str):
         seed=1,
         delta_t=delta_t,
         time_limit=time_limit,
+        stuck_threshold=0.3,
         device=device,
     )
 
@@ -152,7 +152,9 @@ def main(device: str):
     )
 
     # Set the objectives
-    objectives = Objectives(dynamics, goal_pos=env._goal_pos)
+    objectives = Objectives(
+        dynamics, goal_pos=env._goal_pos, stuck_threshold=env.stuck_threshold
+    )
 
     # Set the MPPI
     solver = MPPI(
@@ -160,13 +162,10 @@ def main(device: str):
         num_samples=5000,
         dim_state=3,
         dim_control=2,
-        dynamics=dynamics.transit,
-        stage_cost=objectives.stage_cost,
-        terminal_cost=objectives.terminal_cost,
-        u_min=dynamics.min_action,
-        u_max=dynamics.max_action,
+        dynamics=dynamics,
+        objectives=objectives,
         sigmas=torch.tensor([0.5, 0.5]),
-        lambda_=1.0,
+        lambda_=0.5,
     )
 
     state = env.reset(seed=0)
@@ -187,8 +186,8 @@ def main(device: str):
 
         env.render(
             trajectory=state_seq,
-            top_samples=(top_samples, top_weights),
             is_collisions=is_collisions,
+            top_samples=(top_samples, top_weights),
         )
         if is_terminated:
             print("Goal Reached!")

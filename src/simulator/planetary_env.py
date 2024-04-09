@@ -5,7 +5,7 @@ Kohei Honda and Masafumi Endo, 2024.
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import imageio
 import numpy as np
@@ -19,6 +19,7 @@ from matplotlib.collections import LineCollection
 from src.environments.grid_map import GridMap
 from src.simulator.robot_model import UnicycleModel
 from src.simulator.utils import ModelConfig
+from src.planners.global_planners.sampling_based.tree import Tree
 from src.utils.utils import set_randomness
 
 
@@ -29,7 +30,8 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         start_pos: Optional[torch.Tensor] = None,
         goal_pos: Optional[torch.Tensor] = None,
         delta_t: Optional[float] = 0.1,
-        time_limit: Optional[int] = 100,
+        time_limit: Optional[float] = 100,
+        stuck_threshold: Optional[float] = 0.1,
         render_mode: Optional[str] = "human",
         seed: Optional[int] = None,
         dtype: Optional[torch.dtype] = torch.float32,
@@ -43,7 +45,8 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - start_pos (Optional[torch.Tensor]): Starting position of the agent (x, y) [m].
         - goal_pos (Optional[torch.Tensor]): Goal position of the agent (x, y) [m].
         - delta_t (Optional[float]): Time step for simulation [s].
-        - time_limit (Optional[int]): Time limit for the episode [s].
+        - time_limit (Optional[float]): Time limit for the episode [s].
+        - stuck_threshold (Optional[float]): Threshold for the robot to be considered stuck (low traversability).
         - render_mode (Optional[str]): Rendering mode for the environment.
         - seed (Optional[int]): Random seed for reproducibility.
         - dtype (Optional[torch.dtype]): Data type for torch tensors.
@@ -67,6 +70,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._delta_t = delta_t
         self._time_limit = time_limit
         self._elapsed_time = 0
+
+        # Set stuck threshold
+        self.stuck_threshold = stuck_threshold
 
         # Set grid map
         self._grid_map = grid_map
@@ -103,18 +109,18 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         Returns:
         - pos (torch.Tensor): Initialized position tensor.
         """
-        if pos is not None:
-            return pos.to(self._device, self._dtype)
-        return (
-            torch.randint(
-                0,
-                self._grid_map.grid_size,
-                (2,),
-                dtype=self._dtype,
-                device=self._device,
-            ).float()
-            * self._grid_map.resolution
-        )
+        if pos is None:
+            pos = (
+                torch.randint(
+                    0, self._grid_map.grid_size, (2,), dtype=self._dtype
+                ).float()
+                * self._grid_map.resolution
+            )
+        pos = pos.to(self._device)
+        # Check if the position is traversable
+        if self.collision_check(pos.unsqueeze(0).unsqueeze(0)):
+            raise ValueError("Start or goal position is not traversable.")
+        return pos
 
     def _initialize_robot_state(self) -> torch.Tensor:
         """
@@ -160,8 +166,14 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Reset rendering with two subplots
         self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
 
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['ytick.direction'] = 'in'
+
+        self._ax.set_xlim(self._grid_map.x_limits)
+        self._ax.set_ylim(self._grid_map.y_limits)
+        self._ax.set_xlabel("x [m]")
+        self._ax.set_ylabel("y [m]")
         self._ax.set_aspect("equal")
-        self._ax.set_title("Terrain Appearance Map")
 
         # Set colormap and normalization for rendering
         self._norm = mcolors.Normalize(vmin=0, vmax=1)
@@ -201,35 +213,36 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         is_truncated = self._elapsed_time > self._time_limit
         return self._robot_state, self._reward, is_terminated, is_truncated
 
-    def collision_check(
-        self, states: torch.Tensor, stuck_threshold: float = 0.1
-    ) -> torch.Tensor:
+    def collision_check(self, states: torch.Tensor) -> torch.Tensor:
         """
         Check for collisions at the given position.
 
         Parameters:
         - states (torch.Tensor): States of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
-        - stuck_threshold (float): Threshold for the robot to be considered stuck (low traversability).
 
         Returns:
         - is_collisions (torch.Tensor): Collision states at the given position.
         """
         trav = self._dynamics.get_traversability(states)
-        return trav <= stuck_threshold
+        return trav <= self.stuck_threshold
 
     def render(
         self,
         trajectory: torch.Tensor,
-        top_samples: tuple[torch.Tensor, torch.Tensor],
         is_collisions: torch.Tensor,
+        top_samples: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+        reference_paths: Optional[Union[torch.Tensor, list[torch.Tensor]]] = None,
+        tree: Optional[Tree] = None,
     ) -> None:
         """
         Render the environment with the trajectory, top samples, and collision states.
 
         Parameters:
         - trajectory (torch.Tensor): Trajectory of the robot.
-        - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
+        - top_samples (Optional[tuple[torch.Tensor, torch.Tensor]]): Top samples from the planner.
+        - reference_paths (Optional[Union[torch.Tensor, list[torch.Tensor]]]): Reference paths of the robot.
+        - tree (Optional[Tree]): Tree data structure from the planner.
         """
         # Plot static information (terrain background maps and robot start and goal positions)
         self._ax.imshow(
@@ -257,8 +270,14 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
 
         # Plot dynamic trajectory, top samples, and collision states
         self._render_dynamic_information(
-            trajectory, top_samples, is_collisions, self._ax
+            trajectory, is_collisions, top_samples, reference_paths, tree, self._ax
         )
+
+        self._ax.set_xlim(self._grid_map.x_limits)
+        self._ax.set_ylim(self._grid_map.y_limits)
+        self._ax.set_xlabel("x [m]")
+        self._ax.set_ylabel("y [m]")
+        self._ax.set_aspect("equal")
 
         # Append rendered frames for animation
         if self._render_mode == "human":
@@ -274,8 +293,10 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
     def _render_dynamic_information(
         self,
         trajectory: torch.Tensor,
-        top_samples: tuple[torch.Tensor, torch.Tensor],
         is_collisions: torch.Tensor,
+        top_samples: Optional[tuple[torch.Tensor, torch.Tensor]],
+        reference_paths: Optional[Union[torch.Tensor, list[torch.Tensor]]],
+        tree: Optional[Tree],
         ax: plt.Axes,
     ) -> None:
         """
@@ -283,8 +304,10 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
 
         Parameters:
         - trajectory (torch.Tensor): Trajectory of the robot.
-        - top_samples (tuple[torch.Tensor, torch.Tensor]): Top samples from the planner.
         - is_collisions (torch.Tensor): Collision states.
+        - top_samples (Optional[tuple[torch.Tensor, torch.Tensor]]): Top samples from the planner.
+        - reference_paths (Optional[Union[torch.Tensor, list[torch.Tensor]]]): Reference paths of the robot.
+        - tree (Optional[Tree]): Tree data structure from the planner.
         - ax (plt.Axes): Axes to plot the dynamic information.
         """
         # Current robot state with reward
@@ -302,7 +325,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         points = self._history["states"][:, :2]
         segments = np.array([points[:-1], points[1:]]).transpose(1, 0, 2)
         lc = LineCollection(
-            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=50
+            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=100
         )
         lc.set_array(1 - self._history["rewards"])  # slip = 1 - traversability
         ax.add_collection(lc)
@@ -320,7 +343,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                 c=colors,
                 marker="o",
                 s=3,
-                zorder=100,
+                zorder=75,
             )
 
         # Top samples if provided
@@ -338,8 +361,49 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     top_samples[i, :, 1],
                     c="lightblue",
                     alpha=top_weights[i],
-                    zorder=75,
+                    zorder=50,
                 )
+
+        # Reference paths if provided
+        if reference_paths is not None:
+            if isinstance(reference_paths, torch.Tensor):
+                reference_paths = [reference_paths]
+            for reference_path in reference_paths:
+                ax.plot(
+                    reference_path[:, 0].cpu().numpy(),
+                    reference_path[:, 1].cpu().numpy(),
+                    c="blue",
+                    linestyle="--",
+                    zorder=25,
+                )
+
+        # Tree if provided
+        if tree is not None:
+            nodes = tree.nodes[: tree.nodes_count].cpu().numpy()
+            edges = tree.edges[: tree.nodes_count].cpu().numpy()
+            for i in range(1, tree.nodes_count):
+                parent = nodes[edges[i]]
+                child = nodes[i]
+                ax.plot(
+                    [parent[0], child[0]],
+                    [parent[1], child[1]],
+                    c="black",
+                    linestyle=":",
+                    zorder=15,
+                )
+
+                if hasattr(tree, "state_seqs"):
+                    if tree.seq_lengths[i] > 0:
+                        trajectory = (
+                            tree.state_seqs[i, : tree.seq_lengths[i], :2].cpu().numpy()
+                        )
+                        ax.plot(
+                            trajectory[:, 0],
+                            trajectory[:, 1],
+                            c="lightblue",
+                            linestyle="--",
+                            zorder=25,
+                        )
 
     def close(self, file_path: str = None) -> None:
         """

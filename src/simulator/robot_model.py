@@ -99,14 +99,14 @@ class UnicycleModel:
         elif self._model_config.mode == "inference":
             return next_state
 
-    def get_traversability(self, state: torch.Tensor) -> torch.Tensor:
+    def get_traversability(self, states: torch.Tensor) -> torch.Tensor:
         """
         Get traversability at the given position.
 
         Parameters:
-        - state (torch.Tensor): State of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
+        - states (torch.Tensor): State of the robot as batch of position tensors shaped [batch_size, num_positions, 3].
 
         Returns:
         - trav (torch.Tensor): Traversability at the given position as batch of traversability tensors shaped [batch_size, num_positions].
         """
-        return self._traversability_model.get_traversability(state)
+        return self._traversability_model.get_traversability(states)
