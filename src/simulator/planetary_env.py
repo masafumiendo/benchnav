@@ -17,8 +17,8 @@ import matplotlib.colors as mcolors
 from matplotlib.collections import LineCollection
 
 from src.environments.grid_map import GridMap
-from src.simulator.robot_model import UnicycleModel
-from src.simulator.utils import ModelConfig
+from src.simulator.problem_formulation.robot_model import UnicycleModel
+from src.simulator.problem_formulation.utils import ModelConfig
 from src.planners.global_planners.sampling_based.tree import Tree
 from src.utils.utils import set_randomness
 
@@ -166,8 +166,8 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Reset rendering with two subplots
         self._fig, self._ax = plt.subplots(1, 1, figsize=(6, 6), tight_layout=True)
 
-        plt.rcParams['xtick.direction'] = 'in'
-        plt.rcParams['ytick.direction'] = 'in'
+        plt.rcParams["xtick.direction"] = "in"
+        plt.rcParams["ytick.direction"] = "in"
 
         self._ax.set_xlim(self._grid_map.x_limits)
         self._ax.set_ylim(self._grid_map.y_limits)

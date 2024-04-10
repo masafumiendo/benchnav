@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from src.simulator.robot_model import UnicycleModel
-from src.planners.local_planners.objectives import Objectives
+from simulator.problem_formulation.robot_model import UnicycleModel
+from simulator.problem_formulation.objectives import Objectives
 
 
 class MPPI(nn.Module):

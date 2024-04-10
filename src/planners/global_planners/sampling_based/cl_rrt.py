@@ -9,12 +9,12 @@ from typing import Optional
 
 from src.environments.grid_map import GridMap
 from src.utils.utils import set_randomness
-from src.simulator.robot_model import UnicycleModel
-from src.planners.local_planners.objectives import Objectives
+from src.simulator.problem_formulation.robot_model import UnicycleModel
+from src.simulator.problem_formulation.objectives import Objectives
 from src.planners.global_planners.sampling_based.tree import Tree
 from src.planners.global_planners.sampling_based.rrt import RRT
-from src.followers.pure_pursuit import PurePursuit
-from src.followers.pure_pursuit import PIDController
+from planners.local_planners.pure_pursuit import PurePursuit
+from planners.local_planners.pure_pursuit import PIDController
 
 
 class CLRRT(RRT):

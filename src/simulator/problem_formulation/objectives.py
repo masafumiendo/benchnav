@@ -7,7 +7,7 @@ from typing import Optional
 
 import torch
 
-from src.simulator.robot_model import UnicycleModel
+from src.simulator.problem_formulation.robot_model import UnicycleModel
 
 
 class Objectives:

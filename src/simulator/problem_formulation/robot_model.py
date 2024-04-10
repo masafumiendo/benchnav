@@ -8,8 +8,8 @@ from typing import Optional, Union, Tuple
 import torch
 
 from src.environments.grid_map import GridMap
-from src.simulator.traversability_model import TraversabilityModel
-from src.simulator.utils import ModelConfig
+from src.simulator.problem_formulation.traversability_model import TraversabilityModel
+from src.simulator.problem_formulation.utils import ModelConfig
 
 
 class UnicycleModel:

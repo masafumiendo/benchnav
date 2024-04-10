@@ -7,7 +7,7 @@ from __future__ import annotations
 import torch
 
 from src.environments.grid_map import GridMap
-from src.simulator.utils import ModelConfig
+from src.simulator.problem_formulation.utils import ModelConfig
 
 
 class TraversabilityModel:

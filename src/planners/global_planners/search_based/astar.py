@@ -11,7 +11,7 @@ from pqdict import pqdict
 from typing import Optional
 
 from src.environments.grid_map import GridMap
-from src.simulator.robot_model import UnicycleModel
+from src.simulator.problem_formulation.robot_model import UnicycleModel
 
 
 class AStar(Module):
@@ -58,9 +58,7 @@ class AStar(Module):
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
         # Check if the traversability and height maps have the same shape
@@ -139,7 +137,7 @@ class AStar(Module):
         dz = abs(
             self._get_value(node1, self.heights) - self._get_value(node2, self.heights)
         )
-        return (dx ** 2 + dy ** 2 + dz ** 2) ** 0.5
+        return (dx**2 + dy**2 + dz**2) ** 0.5
 
     def _get_neighbors(self, node: tuple[int, int]) -> list[tuple[int, int]]:
         """
@@ -231,7 +229,7 @@ class AStar(Module):
 
     def _get_value(self, node: tuple[int, int], array: np.ndarray) -> float:
         """
-        Get the value of a position in an array based on the grid index. 
+        Get the value of a position in an array based on the grid index.
         Note that the x and y axes are swapped since the array is in the form of [y, x].
 
         Parameters:

@@ -11,9 +11,9 @@ import torch
 
 from src.environments.grid_map import GridMap
 from src.simulator.planetary_env import PlanetaryEnv
-from src.simulator.utils import ModelConfig
-from src.simulator.robot_model import UnicycleModel
-from src.planners.local_planners.objectives import Objectives
+from src.simulator.problem_formulation.utils import ModelConfig
+from src.simulator.problem_formulation.robot_model import UnicycleModel
+from src.simulator.problem_formulation.objectives import Objectives
 from src.planners.local_planners.dwa import DWA
 from src.planners.global_planners.search_based.astar import AStar
 from src.prediction_models.trainers.utils import ParamsModelTraining

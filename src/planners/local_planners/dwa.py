@@ -9,8 +9,8 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from src.simulator.robot_model import UnicycleModel
-from src.planners.local_planners.objectives import Objectives
+from simulator.problem_formulation.robot_model import UnicycleModel
+from simulator.problem_formulation.objectives import Objectives
 
 
 class DWA(nn.Module):
