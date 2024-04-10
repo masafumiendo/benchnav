@@ -1,5 +1,35 @@
 # BenchNav
-path/motion planning benchmark for planetary exploration rovers
+
+- Masafumi Endo, Kohei Honda, and Genya Ishigami, "BenchNav: Simulation Platform for Benchmarking Off-road Navigation Algorithms with Probabilistic Traversability," submitted to ICRA 2024 Workshop on Resilient Off-road Autonomy.
+
+## Overview
+
+BenchNav is a Pytorch-based simulation platform designed for **Bench**marking off-road **Nav**igation algorithms.
+On top of Gymnasium, we implement the simulation platform owing the following features:
+
+- **Synthetic Terrain Data Generation**: generates a top-down 2.5D terrain map instance replicating pixel-wise appearance and geometric features with their corresponding latent traversability coefficients.
+- **Probabilistic Traversability Prediction**: employs built-in ML models to construct probability distributions of traversability coefficients.
+- **Path and Motion Planning Execution**: simulates off-road point-to-goal navigation by 1) defining motion planning problems and 2) deploying solvers, such as path and motion planners, to find a sequence of feasible actions in an iterative fashion.
+
+### Project Structure at a Glance
+```
+src
+├── data  # Generates synthetic terrain dataset
+│   └── dataset_generator.py
+├── environments  # Define grid map environments
+│   └── grid_map.py
+├── planners  # Implement representative planners
+│   ├── global_planners
+│   └── local_planners
+├── prediction_models  # Implement ML models for probabilistic traversability
+│   ├── slip_regressors
+│   ├── terrain_classifiers
+│   └── traversability_predictors
+├── simulator  # Gym-based simulator for off-road navigation
+│   ├── problem_formulation
+│   └── planetary_env.py
+└── utils
+```
 
 ## Dependencies
 
@@ -59,9 +89,40 @@ make bash-gpu
 # make bash-cpu
 ```
 
-## Test
+## Usage
 
+### Dataset preparation and ML models training
+- To generate a terrain dataset:
 ```bash
 cd /workspace/benchnav
-python3 test/test_env.py
+python3 scripts/generate_terrain_dataset.py
 ```
+
+- To train the terrain classifier:
+```bash
+cd /workspace/benchnav
+python3 scripts/train_terrain_classifier.py
+```
+
+- To train the slip regressors:
+```bash
+cd /workspace/benchnav
+python3 scripts/train_slip_regressors.py
+```
+
+### Off-road Navigation Simulation
+
+You can see step-by-step instructions for simulating off-road navigations at Tutorial #3.
+
+![A* + DWA Off-road Navigation](/assets/AStar_DWA.gif)
+
+![MPPI Off-road Navigation](/assets/MPPI.gif)
+
+## Tutorials
+- Tutorial #1: Environment Descriptions
+- Tutorial #2: Traversability Prediction Models
+- Tutorial #3.1: Off-road Navigation with A* + DWA
+- Tutorial #3.2: Off-road Navigation with MPPI
+- Tutorial #3.3: Off-road Navigation with CL-RRT (TBD)
+
+## 
