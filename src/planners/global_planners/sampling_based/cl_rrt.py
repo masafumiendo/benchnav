@@ -137,7 +137,7 @@ class CLRRT(RRT):
 
         Returns:
         - optimal_action_seq (torch.Tensor): Optimal action sequence.
-        - optimal_state_seq (torch.Tensor): Optimal state sequence.        
+        - optimal_state_seq (torch.Tensor): Optimal state sequence.
         """
         self._start_state = state
         start_node = state[:2] if state.shape[0] == 3 else state
@@ -158,8 +158,8 @@ class CLRRT(RRT):
         for _ in range(self._max_iterations):
             sample_pos = self._sample_position()
             nearest_node_index = self.tree.nearest_neighbor(sample_pos)
-            new_node, action_seq, state_seq, controllers_state, cost, is_feasible = self._steer(
-                nearest_node_index, sample_pos
+            new_node, action_seq, state_seq, controllers_state, cost, is_feasible = (
+                self._steer(nearest_node_index, sample_pos)
             )
 
             if not is_feasible:
@@ -210,8 +210,8 @@ class CLRRT(RRT):
         reference_path = self._generate_reference_path(from_node, to_node)
 
         # Simulate the path following
-        action_seq, state_seq, controllers_state, cost, is_feasible = self._simulate_path_following(
-            from_node_index, reference_path
+        action_seq, state_seq, controllers_state, cost, is_feasible = (
+            self._simulate_path_following(from_node_index, reference_path)
         )
 
         if is_feasible:

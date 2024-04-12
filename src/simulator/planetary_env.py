@@ -58,9 +58,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
         # Set random seed for reproducibility
@@ -102,7 +100,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
     def _initialize_position(self, pos: Optional[torch.Tensor]) -> torch.Tensor:
         """
         Initializes a position tensor, either start or goal.
-        
+
         Parameters:
         - pos (Optional[torch.Tensor]): Position tensor.
 
@@ -188,7 +186,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         Step the environment.
 
         Parameters:
-        - action (torch.Tensor): Action to take as control input (linear velocity, [m/s] and angular velocity, [rad/s]) 
+        - action (torch.Tensor): Action to take as control input (linear velocity, [m/s] and angular velocity, [rad/s])
         as batch of tensors (linear velocity, [m/s] and angular velocity, [rad/s]).
 
         Returns:
@@ -254,7 +252,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._ax.scatter(
             self._start_pos[0].item(),
             self._start_pos[1].item(),
-            s=25,
+            s=50,
             c="red",
             marker="o",
             zorder=2,
@@ -262,7 +260,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._ax.scatter(
             self._goal_pos[0].item(),
             self._goal_pos[1].item(),
-            s=25,
+            s=50,
             c="magenta",
             marker="x",
             zorder=2,
@@ -313,7 +311,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Current robot state with reward
         robot_state = self._robot_state.cpu().numpy()
         reward = self._reward.cpu().numpy()
-        ax.scatter(robot_state[0], robot_state[1], c="green", marker="o", zorder=150)
+        ax.scatter(
+            robot_state[0], robot_state[1], s=50, c="green", marker="o", zorder=150
+        )
 
         # Append current robot state and reward to history
         self._history["states"] = np.append(
@@ -325,7 +325,12 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         points = self._history["states"][:, :2]
         segments = np.array([points[:-1], points[1:]]).transpose(1, 0, 2)
         lc = LineCollection(
-            segments, cmap=self._cmap, norm=self._norm, alpha=0.8, zorder=100
+            segments,
+            cmap=self._cmap,
+            norm=self._norm,
+            linewidth=5,
+            alpha=0.8,
+            zorder=100,
         )
         lc.set_array(1 - self._history["rewards"])  # slip = 1 - traversability
         ax.add_collection(lc)
@@ -342,7 +347,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                 trajectory[0, :, 1].cpu().numpy(),
                 c=colors,
                 marker="o",
-                s=3,
+                s=5,
                 zorder=75,
             )
 
@@ -360,6 +365,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     top_samples[i, :, 0],
                     top_samples[i, :, 1],
                     c="lightblue",
+                    linewidth=2,
                     alpha=top_weights[i],
                     zorder=50,
                 )
@@ -374,6 +380,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     reference_path[:, 1].cpu().numpy(),
                     c="blue",
                     linestyle="--",
+                    linewidth=2.5,
                     zorder=25,
                 )
 
@@ -389,6 +396,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     [parent[1], child[1]],
                     c="black",
                     linestyle=":",
+                    linewidth=2.5,
                     zorder=15,
                 )
 
@@ -402,6 +410,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                             trajectory[:, 1],
                             c="lightblue",
                             linestyle="--",
+                            linewidth=2.5,
                             zorder=25,
                         )
 

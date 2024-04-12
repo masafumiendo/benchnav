@@ -14,14 +14,14 @@ On top of Gymnasium, we implement the simulation platform owing the following fe
 ### Project Structure at a Glance
 ```
 src
-├── data  # Generates synthetic terrain dataset
+├── data  # Synthetic terrain dataset generation
 │   └── dataset_generator.py
-├── environments  # Define grid map environments
+├── environments  # Grid map definitions for environmental features
 │   └── grid_map.py
-├── planners  # Implement representative planners
+├── planners  # Example planners implementation
 │   ├── global_planners
 │   └── local_planners
-├── prediction_models  # Implement ML models for probabilistic traversability
+├── prediction_models  # Probabilistic traversability prediction for ML models
 │   ├── slip_regressors
 │   ├── terrain_classifiers
 │   └── traversability_predictors
@@ -124,5 +124,3 @@ You can see step-by-step instructions for simulating off-road navigations at Tut
 - Tutorial #3.1: Off-road Navigation with A* + DWA
 - Tutorial #3.2: Off-road Navigation with MPPI
 - Tutorial #3.3: Off-road Navigation with CL-RRT (TBD)
-
-## 
