@@ -91,7 +91,7 @@ class MPPI(nn.Module):
 
         # noise distribution
         zero_mean = torch.zeros(dim_control, device=self._device, dtype=self._dtype)
-        initial_covariance = torch.diag(sigmas ** 2).to(self._device, self._dtype)
+        initial_covariance = torch.diag(sigmas**2).to(self._device, self._dtype)
         self._inv_covariance = torch.inverse(initial_covariance).to(
             self._device, self._dtype
         )

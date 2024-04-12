@@ -35,9 +35,7 @@ class GridMap:
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
         self.grid_size = grid_size
         self.resolution = resolution
@@ -50,11 +48,13 @@ class GridMap:
             self.center_y - grid_size / 2 * resolution,
             self.center_y + grid_size / 2 * resolution,
         )
-        self.num_grids = grid_size ** 2
+        self.num_grids = grid_size**2
         set_randomness(seed) if seed is not None else None
         # Initialize data structure for terrain information
-        self.tensors, self.distributions, self.instance_name = self.initialize_terrain_data(
-            grid_size, tensors, distributions, instance_name
+        self.tensors, self.distributions, self.instance_name = (
+            self.initialize_terrain_data(
+                grid_size, tensors, distributions, instance_name
+            )
         )
         # Move the tensors and distributions to the device
         self.move_to_device(self.tensors)
@@ -80,7 +80,7 @@ class GridMap:
         - distributions (dict[str, Normal]): Dictionary of distributions representing terrain information.
             - ground_truths (Normal): Normal distribution representing latent slip model.
             - predictions (Normal): Normal distribution representing slip predictions.
-        
+
         Parameters:
         - grid_size (int): Size of one side of the square grid. The grid is assumed to be square.
         - tensors (Optional[dict[str, torch.Tensor]]): Data structure for distinct terrain information.
@@ -185,7 +185,7 @@ class GridMap:
         Get grid indices for batches of positional information for multiple trajectories.
 
         Parameters:
-        - positions (torch.Tensor): A tensor of shape [batch_size, num_positions, 3] 
+        - positions (torch.Tensor): A tensor of shape [batch_size, num_positions, 3]
           with each row being (x_pos, y_pos, theta) for each state in each trajectory.
 
         Returns:

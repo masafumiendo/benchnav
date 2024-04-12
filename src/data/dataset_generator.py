@@ -86,9 +86,7 @@ class DatasetGenerator:
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
     def generate_dataset(self, processes: int = 4) -> None:

@@ -46,7 +46,7 @@ class UnicycleModel:
     def _define_action_space_bounds(self) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Defines the minimum and maximum bounds for the action space (linear velocity, [m/s] and angular velocity, [rad/s]).
-        
+
         Returns:
         - min_action (torch.Tensor): Minimum action bounds.
         - max_action (torch.Tensor): Maximum action bounds.

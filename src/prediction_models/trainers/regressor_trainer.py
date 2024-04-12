@@ -43,9 +43,7 @@ class RegressorTrainer:
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
         # Set the training dataset then initialize the data loader

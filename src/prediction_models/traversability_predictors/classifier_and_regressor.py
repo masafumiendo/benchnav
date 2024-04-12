@@ -31,9 +31,7 @@ class TraversabilityPredictor:
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
         self.terrain_classifier = terrain_classifier.to(self.device)
         self.slip_regressors = {

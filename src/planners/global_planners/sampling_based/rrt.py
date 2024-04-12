@@ -62,9 +62,7 @@ class RRT(Module):
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
         # Initialize the RRT* parameters
@@ -194,7 +192,7 @@ class RRT(Module):
         - goal_threshold (float): Threshold for the goal position.
 
         Returns:
-        - tuple[bool, list[int]]: Tuple containing a boolean indicating if the goal is reached, 
+        - tuple[bool, list[int]]: Tuple containing a boolean indicating if the goal is reached,
                                   and the goal node index.
         """
         distances = torch.norm(

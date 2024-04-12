@@ -15,7 +15,7 @@ from simulator.problem_formulation.objectives import Objectives
 
 class DWA(nn.Module):
     """
-    Dynamic Window Approach, 
+    Dynamic Window Approach,
     J. Fox et al., IROS, 1997.
     """
 
@@ -286,7 +286,7 @@ class DWA(nn.Module):
 
     def get_top_samples(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Get top samples 
+        Get top samples
 
         Returns:
         - top_samples (torch.Tensor): Top samples.

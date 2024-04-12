@@ -145,8 +145,8 @@ class PurePursuit:
                 controllers_state.dim() == 2 and controllers_state.size(1) == 4
             ), "controllers_state tensor must have a shape of [batch_size, 4]"
 
-            lin_previous_error, lin_integral, ang_previous_error, ang_integral = torch.split(
-                controllers_state, 1, dim=1
+            lin_previous_error, lin_integral, ang_previous_error, ang_integral = (
+                torch.split(controllers_state, 1, dim=1)
             )
 
             self._lin_controller.reset(batch_size, lin_previous_error, lin_integral)
@@ -198,13 +198,13 @@ class PurePursuit:
         """
         deltas = reference_paths_batch - state_batch[:, :2].unsqueeze(1)
 
-        distances = torch.sum(deltas ** 2, dim=2)
+        distances = torch.sum(deltas**2, dim=2)
         angles = torch.atan2(deltas[:, :, 1], deltas[:, :, 0]) - state_batch[
             :, 2
         ].unsqueeze(1)
 
         valid_mask = (angles.abs() < torch.pi / 2) & (
-            distances > self._lookahead_distance ** 2
+            distances > self._lookahead_distance**2
         )
 
         target_indices = valid_mask.long().argmax(dim=1)

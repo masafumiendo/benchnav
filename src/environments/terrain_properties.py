@@ -167,7 +167,7 @@ class TerrainGeometry:
             indexing="ij",
         )
 
-        distances = torch.sqrt(xx ** 2 + yy ** 2)
+        distances = torch.sqrt(xx**2 + yy**2)
         # Adjust the crater profile calculation to ensure the correct gradient
         crater_profile = torch.where(
             distances <= radius,
@@ -259,9 +259,7 @@ class TerrainGeometry:
                 phase = 2 * torch.pi * torch.rand(1, device=device)
                 if x != 0 or y != 0:  # Avoid division by zero at the origin
                     rad = torch.pow(
-                        torch.tensor(
-                            [x ** 2 + y ** 2], dtype=torch.float32, device=device
-                        ),
+                        torch.tensor([x**2 + y**2], dtype=torch.float32, device=device),
                         -((roughness_exponent + 1) / 2),
                     )
                 else:
@@ -286,7 +284,7 @@ class TerrainGeometry:
             for x in range(1, grid_size // 2):
                 phase = 2 * torch.pi * torch.rand(1, device=device)
                 rad = torch.pow(
-                    torch.tensor([x ** 2 + y ** 2], dtype=torch.float32, device=device),
+                    torch.tensor([x**2 + y**2], dtype=torch.float32, device=device),
                     -((roughness_exponent + 1) / 2),
                 )
                 grid[y, grid_size - x] = rad * torch.exp(1j * phase)
@@ -512,7 +510,7 @@ class TerrainColoring:
         # Generate light source vector
         light_angle = torch.rand(1) * (2 * torch.pi)
         z = torch.rand(1) * (upper_threshold - lower_threshold) + lower_threshold
-        radius = torch.sqrt(1 - z ** 2)
+        radius = torch.sqrt(1 - z**2)
         light_source = torch.tensor(
             [radius * torch.cos(light_angle), radius * torch.sin(light_angle), z],
             device=self.grid_map.device,

@@ -51,9 +51,7 @@ class SlipModelsGenerator:
         self.device = (
             device
             if device is not None
-            else "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
+            else "cuda" if torch.cuda.is_available() else "cpu"
         )
 
     def validate_minmax(self, minmax: Tuple[float, float]) -> None:
@@ -75,8 +73,8 @@ class SlipModelsGenerator:
         """
         slip_models = defaultdict(SlipModel)
         for terrain_class in range(self.num_total_terrain_classes):
-            slip_sensitivity, slip_nonlinearity, slip_offset, noise_scale = self.set_slip_model_parameters(
-                terrain_class
+            slip_sensitivity, slip_nonlinearity, slip_offset, noise_scale = (
+                self.set_slip_model_parameters(terrain_class)
             )
             slip_models[terrain_class] = SlipModel(
                 slip_sensitivity=slip_sensitivity,
