@@ -123,4 +123,4 @@ You can see step-by-step instructions for simulating off-road navigations at Tut
 - Tutorial #2: Traversability Prediction Models
 - Tutorial #3.1: Off-road Navigation with A* + DWA
 - Tutorial #3.2: Off-road Navigation with MPPI
-- Tutorial #3.3: Off-road Navigation with CL-RRT (TBD)
+- Tutorial #3.3: Off-road Navigation with CL-RRT (Coming soon!)
