@@ -102,7 +102,10 @@ class RRT(Module):
 
         for _ in range(self._max_iterations):
             # Sample a position to expand the tree
-            sample_pos = self._sample_position()
+            if torch.rand(1) < self._goal_sample_rate:
+                sample_pos = self._goal_node
+            else:
+                sample_pos = self._sample_position()
             nearest_node_index = self.tree.nearest_neighbor(sample_pos)
             new_node, cost, is_feasible = self._steer(nearest_node_index, sample_pos)
 
@@ -130,12 +133,12 @@ class RRT(Module):
         Check if the given position is within the bounds of the grid map using PyTorch tensors.
 
         Parameters:
-        - node (torch.Tensor): Node position to check, expected shape [2].
+        - node (torch.Tensor): Node position to check.
 
         Returns:
         - bool: True if the position is within the bounds, False otherwise.
         """
-        x, y = node
+        x, y = node[:2]
         return (
             self.x_limits[0] <= x.item() <= self.x_limits[1]
             and self.y_limits[0] <= y.item() <= self.y_limits[1]
@@ -148,18 +151,15 @@ class RRT(Module):
         Returns:
         - torch.Tensor: Random position within the bounds of the grid map.
         """
-        if torch.rand(1) < self._goal_sample_rate:
-            return self._goal_node
+        x = torch.rand(1) * (self.x_limits[1] - self.x_limits[0]) + self.x_limits[0]
+        y = torch.rand(1) * (self.y_limits[1] - self.y_limits[0]) + self.y_limits[0]
+        if self._dim_state == 3:
+            theta = torch.rand(1) * 2 * torch.pi
+            position = torch.cat((x, y, theta))
         else:
-            return torch.tensor(
-                [
-                    torch.rand(1) * (self.x_limits[1] - self.x_limits[0])
-                    + self.x_limits[0],
-                    torch.rand(1) * (self.y_limits[1] - self.y_limits[0])
-                    + self.y_limits[0],
-                ],
-                device=self.device,
-            )
+            position = torch.cat((x, y))
+
+        return position.to(self.device)
 
     def _steer(
         self, from_node_index: int, to_node: torch.Tensor
@@ -196,8 +196,9 @@ class RRT(Module):
                                   and the goal node index.
         """
         distances = torch.norm(
-            self.tree.nodes[: self.tree.nodes_count] - self._goal_node, dim=1
+            self.tree.nodes[: self.tree.nodes_count, :2] - self._goal_node[:2], dim=1
         )
+
         near_goal_indices = torch.where(distances < goal_threshold)[0]
 
         if near_goal_indices.nelement() == 0:
