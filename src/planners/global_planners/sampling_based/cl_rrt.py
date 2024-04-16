@@ -15,6 +15,7 @@ from src.planners.global_planners.sampling_based.tree import Tree
 from src.planners.global_planners.sampling_based.rrt import RRT
 from planners.local_planners.pure_pursuit import PurePursuit
 from planners.local_planners.pure_pursuit import PIDController
+from planners.local_planners.dubins import Dubins
 
 
 class CLRRT(RRT):
@@ -30,10 +31,11 @@ class CLRRT(RRT):
         objectives: Objectives,
         grid_map: GridMap,
         delta_t: float,
-        max_iterations: int = 1000,
+        max_iterations: int = 500,
         delta_distance: float = 5,
         goal_sample_rate: float = 0.25,
-        max_seqs: int = 100,
+        max_seqs: int = 250,
+        goal_threshold: float = 1.0,
         device: Optional[str] = None,
         dtype: torch.dtype = torch.float32,
         seed: int = 42,
@@ -52,6 +54,7 @@ class CLRRT(RRT):
         - delta_distance (float): Distance between nodes in the tree.
         - goal_sample_rate (float): Probability of sampling the goal position instead of a random position.
         - max_seqs (int): Maximum number of action sequences to consider.
+        - goal_threshold (float): Threshold for the goal position.
         - device (Optional[str]): Device to run the algorithm on.
         - dtype (torch.dtype): Data type to run the algorithm on.
         - seed (int): Seed for numpy and torch random number generators.
@@ -97,6 +100,7 @@ class CLRRT(RRT):
             self._dynamics.max_action.clone().detach().to(self._device, self._dtype)
         )
         self._max_seqs = max_seqs
+        self._goal_threshold = goal_threshold
 
         self._planner_name = "cl_rrt"
 
@@ -125,8 +129,11 @@ class CLRRT(RRT):
             dtype=self._dtype,
         )
 
+        # Initialize Dubins path planner
+        self._dubins = Dubins(radius=1.0, resolution=0.25)
+
         # Set initial starting state
-        self._start_state = None
+        self._start_node = None
 
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -139,24 +146,33 @@ class CLRRT(RRT):
         - optimal_action_seq (torch.Tensor): Optimal action sequence.
         - optimal_state_seq (torch.Tensor): Optimal state sequence.
         """
-        self._start_state = state
-        start_node = state[:2] if state.shape[0] == 3 else state
+        self._start_node = state
+        theta = torch.atan2(
+            self._goal_node[1] - self._start_node[1],
+            self._goal_node[0] - self._start_node[0],
+        )
+        self._goal_node = torch.cat((self._goal_node, theta.unsqueeze(0)), dim=0)
 
-        if not self._is_within_bounds(start_node) or not self._is_within_bounds(
+        if not self._is_within_bounds(self._start_node) or not self._is_within_bounds(
             self._goal_node
         ):
             raise ValueError("Start or goal position is out of bounds.")
 
         self.tree = Tree(
+            dim_node=self._dim_state,
             dim_state=self._dim_state,
             dim_control=self._dim_control,
+            max_seqs=self._max_seqs,
             planner_name=self._planner_name,
             device=self._device,
         )
-        self.tree.add_node(start_node)
+        self.tree.add_node(self._start_node)
 
         for _ in range(self._max_iterations):
-            sample_pos = self._sample_position()
+            if torch.rand(1) < self._goal_sample_rate:
+                sample_pos = self._goal_node
+            else:
+                sample_pos = self._sample_position()
             nearest_node_index = self.tree.nearest_neighbor(sample_pos)
             new_node, action_seq, state_seq, controllers_state, cost, is_feasible = (
                 self._steer(nearest_node_index, sample_pos)
@@ -174,7 +190,9 @@ class CLRRT(RRT):
             new_cost = self.tree.costs[nearest_node_index] + cost
             self.tree.update_cost(new_node_index, new_cost)
 
-        goal_reached, self._goal_node_indices = self._is_goal_reached()
+        goal_reached, self._goal_node_indices = self._is_goal_reached(
+            goal_threshold=self._goal_threshold
+        )
 
         if goal_reached:
             return self._reconstruct_state_action_seq(self._goal_node_indices[0])
@@ -198,16 +216,18 @@ class CLRRT(RRT):
         - torch.Tensor: Cost of the path following.
         - bool: Feasibility of the path following.
         """
-        # Retrieve the nearest node
+        # Retrieve the nearest node and generate the Dubins path
         from_node = self.tree.nodes[from_node_index]
-        # Restrict the distance between nodes
-        direction = to_node - from_node
-        distance = torch.norm(direction)
-        if distance > self._delta_distance:
-            to_node = from_node + self._delta_distance * direction / distance
+        reference_path = self._dubins.dubins_path(from_node, to_node)
 
-        # Generate the dense reference path
-        reference_path = self._generate_reference_path(from_node, to_node)
+        distances = torch.norm(reference_path[1:] - reference_path[:-1], dim=1)
+        cumulative_distance = torch.cumsum(distances, dim=0)
+        limit_indices = torch.where(cumulative_distance > self._delta_distance)
+        limit_index = limit_indices[0][0] if len(limit_indices[0]) > 0 else -1
+
+        # If a limit is found, truncate the reference path
+        if limit_index != -1:
+            reference_path = reference_path[: limit_index + 1]
 
         # Simulate the path following
         action_seq, state_seq, controllers_state, cost, is_feasible = (
@@ -216,7 +236,7 @@ class CLRRT(RRT):
 
         if is_feasible:
             return (
-                state_seq[:, -1, :2],
+                state_seq[:, -1],
                 action_seq,
                 state_seq,
                 controllers_state,
@@ -225,32 +245,6 @@ class CLRRT(RRT):
             )
         else:
             return None, None, None, None, None, False
-
-    def _generate_reference_path(
-        self, from_node: torch.Tensor, to_node: torch.Tensor, resolution: float = 0.5
-    ) -> torch.Tensor:
-        """
-        Generate the reference path from the nearest node to the sample position.
-
-        Parameters:
-        - from_node (torch.Tensor): Nearest node in the tree.
-        - to_node (torch.Tensor): Sample position to steer to.
-        - resolution (float): Resolution of the reference path.
-
-        Returns:
-        - torch.Tensor: Reference path.
-        """
-        distance = torch.norm(to_node - from_node)
-        steps = (distance / resolution).ceil().int().item()
-
-        reference_path_x = torch.linspace(
-            from_node[0], to_node[0], steps + 1, device=self._device
-        )
-        reference_path_y = torch.linspace(
-            from_node[1], to_node[1], steps + 1, device=self._device
-        )
-
-        return torch.stack([reference_path_x, reference_path_y], dim=1)
 
     def _simulate_path_following(
         self, start_node_index: int, reference_path: torch.Tensor
@@ -284,7 +278,7 @@ class CLRRT(RRT):
 
         # Retrieve the initial states from the tree
         if start_node_index == 0:
-            state_seq[:, 0, :] = self._start_state.repeat(1, 1)
+            state_seq[:, 0, :] = self._start_node.repeat(1, 1)
             self._pure_pursuit.reset(1)
         else:
             seq_length = self.tree.seq_lengths[start_node_index]
