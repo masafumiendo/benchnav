@@ -233,6 +233,6 @@ class Tree:
         - int: Index of the nearest neighbor.
         """
         distances = torch.norm(
-            self.nodes[: self.nodes_count] - new_point.unsqueeze(0), dim=1
+            self.nodes[: self.nodes_count, :2] - new_point[:2].unsqueeze(0), dim=1
         )
         return torch.argmin(distances).item()
