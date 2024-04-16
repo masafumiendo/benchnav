@@ -175,11 +175,11 @@ def main(device: str):
                 is_replan = False
 
             if t > 0:
-                expected_state = state_seq[:, action_index, :].squeeze()
-                pos_deviation = torch.norm(expected_state[:2] - state[:2])
-                is_replan = pos_deviation > 1.0
+                pos_deviation_seq = torch.norm(state_seq[:, :, :2] - state[:2], dim=2)
+                deviation = torch.min(pos_deviation_seq)
+                is_replan = deviation > 1.0
                 if is_replan:
-                    print(f"Replan at t={t}, pos_deviation={pos_deviation}")
+                    print(f"Replan at t={t}, deviation={deviation}")
                     continue
 
             action = action_seq[action_index, :]
