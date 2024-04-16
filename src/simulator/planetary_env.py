@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import gymnasium as gym
 import matplotlib.pyplot as plt
+from matplotlib import patches
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from matplotlib.collections import LineCollection
@@ -32,6 +33,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         delta_t: Optional[float] = 0.1,
         time_limit: Optional[float] = 100,
         stuck_threshold: Optional[float] = 0.1,
+        goal_threshold: Optional[float] = 1.0,
         render_mode: Optional[str] = "human",
         seed: Optional[int] = None,
         dtype: Optional[torch.dtype] = torch.float32,
@@ -47,6 +49,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         - delta_t (Optional[float]): Time step for simulation [s].
         - time_limit (Optional[float]): Time limit for the episode [s].
         - stuck_threshold (Optional[float]): Threshold for the robot to be considered stuck (low traversability).
+        - goal_threshold (Optional[float]): Threshold for the robot to reach the goal [m].
         - render_mode (Optional[str]): Rendering mode for the environment.
         - seed (Optional[int]): Random seed for reproducibility.
         - dtype (Optional[torch.dtype]): Data type for torch tensors.
@@ -84,6 +87,8 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         # Initialize start and goal positions
         self._start_pos = self._initialize_position(start_pos)
         self._goal_pos = self._initialize_position(goal_pos)
+
+        self._goal_threshold = goal_threshold
 
         # Initialize robot state and reward
         self._robot_state = self._initialize_robot_state()
@@ -207,7 +212,9 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
         self._elapsed_time += self._delta_t
 
         # Check if episode is terminated or truncated
-        is_terminated = torch.norm(self._robot_state[:2] - self._goal_pos) < 0.1  # [m]
+        is_terminated = (
+            torch.norm(self._robot_state[:2] - self._goal_pos) < self._goal_threshold
+        )
         is_truncated = self._elapsed_time > self._time_limit
         return self._robot_state, self._reward, is_terminated, is_truncated
 
@@ -257,14 +264,16 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
             marker="o",
             zorder=2,
         )
-        self._ax.scatter(
-            self._goal_pos[0].item(),
-            self._goal_pos[1].item(),
-            s=50,
-            c="magenta",
-            marker="x",
+
+        c = patches.Circle(
+            self._goal_pos.cpu().numpy(),
+            self._goal_threshold,
+            fill=False,
+            edgecolor="magenta",
+            linewidth=1,
             zorder=2,
         )
+        self._ax.add_patch(c)
 
         # Plot dynamic trajectory, top samples, and collision states
         self._render_dynamic_information(
@@ -396,7 +405,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                     [parent[1], child[1]],
                     c="black",
                     linestyle=":",
-                    linewidth=2.5,
+                    linewidth=2,
                     zorder=15,
                 )
 
@@ -410,7 +419,7 @@ class PlanetaryEnv(gym.Env[torch.Tensor, torch.Tensor]):
                             trajectory[:, 1],
                             c="lightblue",
                             linestyle="--",
-                            linewidth=2.5,
+                            linewidth=2,
                             zorder=25,
                         )
 
