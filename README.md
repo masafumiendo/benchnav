@@ -13,22 +13,26 @@ On top of Gymnasium, we implement the simulation platform owing the following fe
 
 ### Project Structure at a Glance
 ```
-src
-├── data  # Synthetic terrain dataset generation
-│   └── dataset_generator.py
-├── environments  # Grid map definitions for environmental features
-│   └── grid_map.py
-├── planners  # Example planners implementation
-│   ├── global_planners
-│   └── local_planners
-├── prediction_models  # Probabilistic traversability prediction for ML models
-│   ├── slip_regressors
-│   ├── terrain_classifiers
-│   └── traversability_predictors
-├── simulator  # Gym-based simulator for off-road navigation
-│   ├── problem_formulation
-│   └── planetary_env.py
-└── utils
+├── src                         # Source code directory
+│   ├── data                    # Synthetic terrain dataset generation
+│   │   └── dataset_generator.py
+│   ├── environments            # Grid map definitions for environmental features
+│   │   └── grid_map.py
+│   ├── planners                # Example planners implementation
+│   │   ├── global_planners
+│   │   └── local_planners
+│   ├── prediction_models       # Probabilistic traversability prediction for ML models
+│   │   ├── slip_regressors
+│   │   ├── terrain_classifiers
+│   │   └── traversability_predictors
+│   ├── simulator               # Gym-based simulator for off-road navigation
+│   │   ├── problem_formulation
+│   │   └── planetary_env.py
+│   └── utils                   # Utility scripts and helper functions
+├── datasets                    # Datasets for model training and evaluation
+├── notebooks                   # Notebooks containing tutorials for the platform
+└── trained_models              # Pretrained ML Models
+
 ```
 
 ## Dependencies
@@ -116,14 +120,20 @@ python3 scripts/train_slip_regressors.py
 ### Off-road Navigation Simulation
 
 You can see step-by-step instructions for simulating off-road navigations at Tutorial #3.
+Trajectories are color-coded according to traversability, with cooler colors for safer paths.
 
+#### A* + DWA Off-road Navigation
 ![A* + DWA Off-road Navigation](/assets/AStar_DWA.gif)
 
+#### CL-RRT Off-road Navigation
+![CL-RRT Off-road Navigation](/assets/CL_RRT.gif)
+
+#### MPPI Off-road Navigation
 ![MPPI Off-road Navigation](/assets/MPPI.gif)
 
 ## Tutorials
 - Tutorial #1: Environment Descriptions
 - Tutorial #2: Traversability Prediction Models
 - Tutorial #3.1: Off-road Navigation with A* + DWA
-- Tutorial #3.2: Off-road Navigation with MPPI
-- Tutorial #3.3: Off-road Navigation with CL-RRT (Coming soon!)
+- Tutorial #3.2: Off-road Navigation with CL-RRT
+- Tutorial #3.3: Off-road Navigation with MPPI
