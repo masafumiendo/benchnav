@@ -11,7 +11,9 @@ On top of Gymnasium, we implement the simulation platform owing the following fe
 - **Probabilistic Traversability Prediction**: employs built-in ML models to construct probability distributions of traversability coefficients.
 - **Path and Motion Planning Execution**: simulates off-road point-to-goal navigation by 1) defining motion planning problems and 2) deploying solvers, such as path and motion planners, to find a sequence of feasible actions in an iterative fashion.
 
-| ![A* + DWA](/assets/AStar_DWA.gif)  A* + DWA Off-road Navigation | ![CL-RRT](/assets/CL_RRT.gif)  CL-RRT Off-road Navigation | ![MPPI](/assets/MPPI.gif)  MPPI Off-road Navigation |
+### Representative Off-road Navigation Examples with Different Planning Algorithms
+
+| ![A* + DWA](/assets/AStar_DWA.gif)  A* + DWA | ![CL-RRT](/assets/CL_RRT.gif)  CL-RRT | ![MPPI](/assets/MPPI.gif)  MPPI |
 |:---:|:---:|:---:|
 
 Trajectories are color-coded according to traversability, with cooler colors for safer paths.
