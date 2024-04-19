@@ -1,8 +1,6 @@
-# BenchNav
-
-- Masafumi Endo, Kohei Honda, and Genya Ishigami, "BenchNav: Simulation Platform for Benchmarking Off-road Navigation Algorithms with Probabilistic Traversability," submitted to ICRA 2024 Workshop on Resilient Off-road Autonomy.
-
-## Overview
+<h1 align="center">
+BenchNav 
+</h1>
 
 BenchNav is a Pytorch-based simulation platform designed for **Bench**marking off-road **Nav**igation algorithms.
 On top of Gymnasium, we implement the simulation platform owing the following features:
@@ -11,7 +9,7 @@ On top of Gymnasium, we implement the simulation platform owing the following fe
 - **Probabilistic Traversability Prediction**: employs built-in ML models to construct probability distributions of traversability coefficients.
 - **Path and Motion Planning Execution**: simulates off-road point-to-goal navigation by 1) defining motion planning problems and 2) deploying solvers, such as path and motion planners, to find a sequence of feasible actions in an iterative fashion.
 
-### Representative Off-road Navigation Examples with Different Planning Algorithms
+### Representative Off-road Navigation Examples
 
 | ![A* + DWA](/assets/AStar_DWA.gif)  A* + DWA | ![CL-RRT](/assets/CL_RRT.gif)  CL-RRT | ![MPPI](/assets/MPPI.gif)  MPPI |
 |:---:|:---:|:---:|
@@ -40,6 +38,19 @@ Trajectories are color-coded according to traversability, with cooler colors for
 ├── notebooks                   # Notebooks containing tutorials for the platform
 └── trained_models              # Pretrained ML Models
 
+```
+
+## Citation
+
+```
+@INPROCEEDINGS{endo2024benchnav, 
+  AUTHOR    = {Masafumi Endo and Kohei Honda and Genya Ishigami}, 
+  TITLE     = {BenchNav: Simulation Platform for Benchmarking Off-road Navigation Algorithms with Probabilistic Traversability}, 
+  BOOKTITLE = {under review for ICRA 2024 Workshop on Resilient Off-road Autonomy}, 
+  YEAR      = {2024}, 
+  ADDRESS   = {Yokohama, Japan}, 
+  MONTH     = {June}
+} 
 ```
 
 ## Dependencies
