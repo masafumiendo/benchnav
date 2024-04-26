@@ -13,7 +13,8 @@ RUN apt-get -y update && apt-get -y install --no-install-recommends\
     git\
     x11-apps \
     swig \
-    patchelf
+    patchelf \
+    unzip
 
 # Python (version 3.10)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
