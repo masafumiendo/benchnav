@@ -46,7 +46,7 @@ Trajectories are color-coded according to traversability, with cooler colors for
 @INPROCEEDINGS{endo2024benchnav, 
   AUTHOR    = {Masafumi Endo and Kohei Honda and Genya Ishigami}, 
   TITLE     = {BenchNav: Simulation Platform for Benchmarking Off-road Navigation Algorithms with Probabilistic Traversability}, 
-  BOOKTITLE = {under review for ICRA 2024 Workshop on Resilient Off-road Autonomy}, 
+  BOOKTITLE = {ICRA 2024 Workshop on Resilient Off-road Autonomy}, 
   YEAR      = {2024}, 
   ADDRESS   = {Yokohama, Japan}, 
   MONTH     = {June}
