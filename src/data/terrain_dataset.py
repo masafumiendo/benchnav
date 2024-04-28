@@ -15,7 +15,11 @@ class BaseDataset(Dataset):
     """
 
     def __init__(
-        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+        self,
+        data_directory: str,
+        data_split: str,
+        subset_index: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
         """
         Initializes the TerrainDataset with the specified directory, and data split.
@@ -24,6 +28,7 @@ class BaseDataset(Dataset):
         - data_directory (str): The directory containing the dataset.
         - data_split (str): The dataset split ('train', 'valid', 'test').
         - subset_index (Optional[int]): The index of the testing subset.
+        - device (Optional[str]): The device for loading the data.
         """
         # Validate the data_split argument
         if data_split not in ["train", "valid", "test"]:
@@ -45,6 +50,7 @@ class BaseDataset(Dataset):
         self.file_paths = [
             os.path.join(self.data_directory, file_id) for file_id in self.data_indices
         ]
+        self.device = device
 
     def __len__(self) -> int:
         """Returns the number of items in the dataset."""
@@ -58,9 +64,13 @@ class TerrainClassificationDataset(BaseDataset):
     """
 
     def __init__(
-        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+        self,
+        data_directory: str,
+        data_split: str,
+        subset_index: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
-        super().__init__(data_directory, data_split, subset_index)
+        super().__init__(data_directory, data_split, subset_index, device)
 
     def __len__(self) -> int:
         return super().__len__()
@@ -75,7 +85,9 @@ class TerrainClassificationDataset(BaseDataset):
         Returns:
         - Tuple[torch.Tensor, torch.Tensor]: containing the color map and the mask map.
         """
-        tensors = torch.load(self.file_paths[index])["tensors"]
+        tensors = torch.load(self.file_paths[index], map_location=self.device)[
+            "tensors"
+        ]
         return (tensors["colors"], tensors["t_classes"])
 
 
@@ -86,9 +98,13 @@ class SlipRegressionDataset(BaseDataset):
     """
 
     def __init__(
-        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+        self,
+        data_directory: str,
+        data_split: str,
+        subset_index: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
-        super().__init__(data_directory, data_split, subset_index)
+        super().__init__(data_directory, data_split, subset_index, device)
 
     def __len__(self) -> int:
         return super().__len__()
@@ -105,7 +121,7 @@ class SlipRegressionDataset(BaseDataset):
         Returns:
         - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: containing the slope map, the slip map, and the terrain class.
         """
-        data_item = torch.load(self.file_paths[index])
+        data_item = torch.load(self.file_paths[index], map_location=self.device)
         tensors = data_item["tensors"]
         distributions = data_item["distributions"]
         return (
@@ -124,9 +140,13 @@ class TraversabilityPredictionDataset(BaseDataset):
     """
 
     def __init__(
-        self, data_directory: str, data_split: str, subset_index: Optional[int] = None
+        self,
+        data_directory: str,
+        data_split: str,
+        subset_index: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> None:
-        super().__init__(data_directory, data_split, subset_index)
+        super().__init__(data_directory, data_split, subset_index, device)
 
     def __len__(self) -> int:
         return super().__len__()
@@ -143,7 +163,7 @@ class TraversabilityPredictionDataset(BaseDataset):
         Returns:
         - Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]: containing the color map, the slope map, the mean and standard deviation of the slip map.
         """
-        data_item = torch.load(self.file_paths[index])
+        data_item = torch.load(self.file_paths[index], map_location=self.device)
         tensors = data_item["tensors"]
         distributions = data_item["distributions"]
         return (
