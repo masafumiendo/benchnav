@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 import torch
-from torch.nn import Module
+from torch import nn
 from gpytorch import Module
 from gpytorch.likelihoods import GaussianLikelihood
 
@@ -40,17 +40,19 @@ class ParamsModelTraining:
             raise ValueError("device must be 'cpu', 'cuda', or 'cuda:<index>'.")
 
 
-def load_model_state_dict(model: Module, model_directory: str, device: str) -> Module:
+def load_model_state_dict(
+    model: nn.Module, model_directory: str, device: str
+) -> nn.Module:
     """
     Load a trained model from a file.
 
     Parameters:
-    - model (Module): The model need to be loaded.
+    - model (nn.Module): The model need to be loaded.
     - model_directory (str): Directory containing the trained model.
     - device (str): Device for loading the model, either "cpu" or "cuda".
 
     Returns:
-    - Module: The trained model.
+    - nn.Module: The trained model.
     """
     if device not in ["cpu", "cuda"] and not device.startswith("cuda:"):
         raise ValueError("device must be 'cpu', 'cuda', or 'cuda:<index>'.")
@@ -86,7 +88,8 @@ def load_slip_regressors(
     for i in range(num_terrain_classes):
         # Load the training data
         train_data = torch.load(
-            os.path.join(train_data_directory, f"slip_observations/{i:02d}_class.pth")
+            os.path.join(train_data_directory, f"slip_observations/{i:02d}_class.pth"),
+            map_location=device,
         )
         train_x = train_data["train_x"].to(device)
         train_y = train_data["train_y"].to(device)

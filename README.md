@@ -114,7 +114,11 @@ make bash-gpu
 ## Usage
 
 ### Dataset and ML models download
-- Visit [the release of datasets and trained models](https://github.com/masafumiendo/benchnav/releases/tag/v0.0) to place them in your repository.
+
+```bash
+cd /workspace/benchnav
+sh scripts/download_dataset_and_model.sh
+```
 
 ### (Optional) Dataset preparation and ML models training
 - To generate a terrain dataset:

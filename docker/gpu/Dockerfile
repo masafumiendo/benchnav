@@ -13,7 +13,8 @@ RUN apt-get -y update && apt-get -y install --no-install-recommends\
     git\
     x11-apps \
     swig \
-    patchelf
+    patchelf \
+    unzip
 
 # Python (version 3.10)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
@@ -27,7 +28,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 RUN pip3 install --upgrade pip
-RUN pip3 install -U pip distlib setuptools wheel
+RUN pip3 install -U pip distlib setuptools wheel ipython jupyter
 
 # utils
 RUN apt-get update && apt-get install -y htop vim ffmpeg 
