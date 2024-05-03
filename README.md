@@ -2,6 +2,8 @@
 BenchNav 
 </h1>
 
+![BenchNav](/assets/benchnav.png)
+
 BenchNav is a Pytorch-based simulation platform designed for **Bench**marking off-road **Nav**igation algorithms.
 On top of Gymnasium, we implement the simulation platform owing the following features:
 
