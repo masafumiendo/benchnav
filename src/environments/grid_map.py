@@ -164,16 +164,16 @@ class GridMap:
 
         if isinstance(tensor_data, torch.Tensor):
             # Fetching from tensors
-            fetched_values = tensor_data[flat_indices[:, 0], flat_indices[:, 1]].view(
+            fetched_values = tensor_data[flat_indices[:, 1], flat_indices[:, 0]].view(
                 batch_size, num_positions
             )
             return fetched_values
         elif hasattr(tensor_data, "mean") and hasattr(tensor_data, "stddev"):
             # Handling distributions: create a masked distribution based on indices.
-            means = tensor_data.mean[flat_indices[:, 0], flat_indices[:, 1]].view(
+            means = tensor_data.mean[flat_indices[:, 1], flat_indices[:, 0]].view(
                 batch_size, num_positions
             )
-            stddevs = tensor_data.stddev[flat_indices[:, 0], flat_indices[:, 1]].view(
+            stddevs = tensor_data.stddev[flat_indices[:, 1], flat_indices[:, 0]].view(
                 batch_size, num_positions
             )
             return Normal(means, stddevs)
